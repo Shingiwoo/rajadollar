@@ -18,7 +18,7 @@ from risk_management.risk_checker import is_liquidation_risk
 from risk_management.risk_calculator import calculate_order_qty
 from database.sqlite_logger import log_trade, init_db, get_all_trades
 from models.trade import Trade
-from utils.data_provider import fetch_latest_data
+from utils.data_provider import fetch_latest_data, load_symbol_filters
 
 # --- INIT ---
 st.set_page_config(page_title="RajaDollar Trading", layout="wide")
@@ -41,7 +41,7 @@ notif_resume = st.sidebar.checkbox("Notifikasi Resume Start", value=True)
 
 # --- State ---
 active_positions = load_state() if resume_flag else []
-symbol_filters = {}  # Akan diisi saat load_symbol_filters
+symbol_filters = load_symbol_filters(client, [symbol])  # Akan diisi saat load_symbol_filters
 trading_active = False
 open_positions = []  # Untuk pengecekan max_positions/koin
 
@@ -82,7 +82,7 @@ def trading_loop():
                 continue
 
             # Check open positions
-            if (latest_row['long_signal'] and
+            if bool(latest_row['long_signal'] and
                 can_open_new_position(symbol, max_positions, max_symbols, open_positions)):
                 sl = latest_price * 0.99
                 tp = latest_price * 1.02
@@ -125,7 +125,7 @@ def trading_loop():
                     trade.pnl = pnl
                     log_trade(trade)
                     active_positions.remove(pos)
-                    update_open_positions(symbol, current_side, pos['size'], latest_price, 'close')
+                    update_open_positions(symbol, current_side, pos['size'], latest_price, 'close', open_positions)
                     save_state(active_positions)
                     if notif_exit:
                         kirim_notifikasi_telegram(f"🔒 *EXIT*: {symbol} closed @ {latest_price}, PnL: {pnl:.2f}")

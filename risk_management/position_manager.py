@@ -28,3 +28,5 @@ def update_open_positions(symbol, side, qty, price, status, open_positions):
         open_positions.append({'symbol': symbol, 'side': side, 'qty': qty, 'entry_price': price})
     elif status == 'close':
         open_positions[:] = [pos for pos in open_positions if not (pos['symbol'] == symbol and pos['side'] == side)]
+
+
