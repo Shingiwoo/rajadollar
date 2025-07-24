@@ -1,32 +1,152 @@
 import streamlit as st
-from models.trade import Trade
-from utils.state_manager import save_state, load_state, delete_state
+import time
+import threading
+import pandas as pd
+from binance.client import Client
+
+# --- Import Modular ---
+from config import BINANCE_KEYS
 from notifications.notifier import kirim_notifikasi_telegram
 from notifications.command_handler import get_updates, handle_command
+from utils.state_manager import save_state, load_state, delete_state
+from utils.safe_api import safe_api_call
 from strategies.scalping_strategy import apply_indicators, generate_signals
-from execution.order_router import safe_futures_create_order
-from execution.order_monitor import check_exit_condition
-from risk_management.position_manager import apply_trailing_sl
-from database.sqlite_logger import log_trade, get_all_trades, init_db
+from execution.order_router import safe_futures_create_order, adjust_quantity_to_min
+from execution.slippage_handler import verify_price_before_order
+from risk_management.position_manager import apply_trailing_sl, can_open_new_position, update_open_positions, check_exit_condition
+from risk_management.risk_checker import is_liquidation_risk
+from risk_management.risk_calculator import calculate_order_qty
+from database.sqlite_logger import log_trade, init_db, get_all_trades
+from models.trade import Trade
+from utils.data_provider import fetch_latest_data
 
-resume_flag = st.sidebar.checkbox("Aktifkan Resume Otomatis", value=True)
+# --- INIT ---
+st.set_page_config(page_title="RajaDollar Trading", layout="wide")
+init_db()
+client = Client(BINANCE_KEYS["testnet"]["API_KEY"], BINANCE_KEYS["testnet"]["API_SECRET"])
+
+# --- UI PARAMS ---
+symbol = st.sidebar.selectbox("Symbol", ["BTCUSDT", "ETHUSDT"])
+leverage = st.sidebar.slider("Leverage", 1, 50, 20)
+capital = st.sidebar.number_input("Initial Capital (USDT)", value=1000.0)
+risk_per_trade = st.sidebar.number_input("Risk per Trade (%)", min_value=0.01, max_value=1.0, value=0.02)
+max_positions = st.sidebar.slider("Max Positions", 1, 4, 4)
+max_symbols = st.sidebar.slider("Max Symbols", 1, 2, 2)
+max_slippage = st.sidebar.number_input("Max Slippage (%)", 0.1, 1.0, 0.5)
+resume_flag = st.sidebar.checkbox("Resume Otomatis", value=True)
 notif_entry = st.sidebar.checkbox("Notifikasi Entry", value=True)
 notif_exit = st.sidebar.checkbox("Notifikasi Exit", value=True)
 notif_error = st.sidebar.checkbox("Notifikasi Error", value=True)
 notif_resume = st.sidebar.checkbox("Notifikasi Resume Start", value=True)
 
-init_db()
-active_positions = []
+# --- State ---
+active_positions = load_state() if resume_flag else []
+symbol_filters = {}  # Akan diisi saat load_symbol_filters
+trading_active = False
+open_positions = []  # Untuk pengecekan max_positions/koin
 
-if resume_flag:
-    active_positions = load_state()
-    if active_positions and notif_resume:
-        symbols = ", ".join([pos['symbol'] for pos in active_positions])
-        kirim_notifikasi_telegram(f"✅ *Bot Resumed*: Memulihkan posisi aktif {len(active_positions)} koin ({symbols})")
-else:
-    delete_state()
+def trading_loop():
+    global trading_active, active_positions, open_positions
+    try:
+        # 1. Kirim notifikasi resume
+        if notif_resume and active_positions:
+            symbols = ', '.join([pos['symbol'] for pos in active_positions])
+            jum = len(active_positions)
+            kirim_notifikasi_telegram(f"*Bot Resumed*: Memulihkan posisi aktif {jum} koin ({symbols})")
+        kirim_notifikasi_telegram("🤖 *Bot trading aktif!*")
 
-if st.sidebar.button("Lihat Trade History"):
+        while trading_active:
+            # 2. Ambil data OHLCV terbaru
+            df = fetch_latest_data(symbol, client, interval='5m', limit=100)
+            df = apply_indicators(df)
+            # 3. Integrasi ML
+            df = generate_signals(df)  # long_signal/short_signal sudah include ML+indikator
+
+            latest_row = df.iloc[-1]
+            latest_price = latest_row['close']
+
+            # 4. Handle Telegram command di setiap loop
+            bot_state = {"positions": active_positions}
+            updates = get_updates()
+            for update in updates.get("result", []):
+                message = update.get("message", {})
+                text = message.get("text", "")
+                chat_id = message.get("chat", {}).get("id")
+                handle_command(text, chat_id, bot_state)
+            if bot_state.get("force_exit"):
+                active_positions.clear()
+                open_positions.clear()
+                delete_state()
+                trading_active = False
+                kirim_notifikasi_telegram("⛔ Semua posisi ditutup berdasarkan perintah Telegram.")
+                continue
+
+            # Check open positions
+            if (latest_row['long_signal'] and
+                can_open_new_position(symbol, max_positions, max_symbols, open_positions)):
+                sl = latest_price * 0.99
+                tp = latest_price * 1.02
+                qty = calculate_order_qty(symbol, latest_price, sl, capital, risk_per_trade, leverage)
+                qty = adjust_quantity_to_min(symbol, qty, latest_price, symbol_filters)
+                if is_liquidation_risk(latest_price, 'long', leverage):
+                    st.warning(f"Risiko likuidasi tinggi untuk {symbol}!")
+                    continue
+                if not verify_price_before_order(client, symbol, 'BUY', latest_price, max_slippage / 100):
+                    st.warning(f"Slippage terlalu besar pada {symbol}. Sinyal diabaikan.")
+                    continue
+                # Order eksekusi
+                order = safe_api_call(
+                    safe_futures_create_order, client, symbol, 'BUY', 'MARKET', qty, symbol_filters
+                )
+                if order:
+                    trade = Trade(symbol, 'long', time.strftime("%Y-%m-%dT%H:%M:%S"), latest_price, qty, sl, tp, sl)
+                    active_positions.append(trade.to_dict())
+                    open_positions.append({'symbol': symbol, 'side': 'long', 'qty': qty, 'entry_price': latest_price})
+                    save_state(active_positions)
+                    if notif_entry:
+                        kirim_notifikasi_telegram(f"📈 *LONG ENTRY*: {symbol} @ {latest_price}, SL: {sl}, TP: {tp}, Size: {qty}")
+
+            # 6. Exit logic (TP/SL/Trailing)
+            for pos in active_positions[:]:
+                current_side = pos['side']
+                trailing_sl = apply_trailing_sl(latest_price, pos['entry_price'], current_side, pos['trailing_sl'], 0.5, 0.25)
+                exit_cond = check_exit_condition(latest_price, trailing_sl, pos['tp'], 0, direction=current_side)
+                if exit_cond:
+                    # Eksekusi close order
+                    order_exit = safe_api_call(
+                        safe_futures_create_order,
+                        client, symbol, 'SELL' if current_side == 'long' else 'BUY', 'MARKET',
+                        pos['size'], symbol_filters
+                    )
+                    pnl = (latest_price - pos['entry_price']) * pos['size']
+                    trade = Trade(**pos)
+                    trade.exit_time = time.strftime("%Y-%m-%dT%H:%M:%S")
+                    trade.exit_price = latest_price
+                    trade.pnl = pnl
+                    log_trade(trade)
+                    active_positions.remove(pos)
+                    update_open_positions(symbol, current_side, pos['size'], latest_price, 'close')
+                    save_state(active_positions)
+                    if notif_exit:
+                        kirim_notifikasi_telegram(f"🔒 *EXIT*: {symbol} closed @ {latest_price}, PnL: {pnl:.2f}")
+
+            time.sleep(60)  # Sesuaikan interval loop
+    except Exception as e:
+        kirim_notifikasi_telegram(f"⚠ *CRASH*: {str(e)}")
+        trading_active = False
+
+# --- UI BUTTONS ---
+if st.button("Start Trading") and not trading_active:
+    trading_active = True
+    threading.Thread(target=trading_loop, daemon=True).start()
+    st.success("🚀 Bot trading dimulai!")
+
+if st.button("Stop Trading") and trading_active:
+    trading_active = False
+    st.warning("🛑 Bot trading dihentikan")
+
+# --- VIEW LOG HISTORI ---
+if st.button("Lihat Trade History"):
     df = get_all_trades()
     if not df.empty:
         st.dataframe(df)
@@ -34,33 +154,3 @@ if st.sidebar.button("Lihat Trade History"):
     else:
         st.warning("Tidak ada histori trade.")
 
-# Load or initialize bot state command handler
-bot_state = {"positions": active_positions}
-offset = None
-
-updates = get_updates(offset)
-for update in updates.get("result", []):
-    message = update.get("message", {})
-    text = message.get("text", "")
-    chat_id = message.get("chat", {}).get("id")
-    handle_command(text, chat_id, bot_state)
-    offset = update["update_id"] + 1
-
-if bot_state.get("manual_entry"):
-    symbol = bot_state["manual_entry"]
-    st.success(f"Manual entry diterima: {symbol} (🔁 dari Telegram)")
-    kirim_notifikasi_telegram(f"✴ *ENTRY MANUAL* diterima dari Telegram untuk {symbol}")
-    # reset
-    bot_state["manual_entry"] = None
-
-if bot_state.get("force_exit"):
-    st.warning("⛔ Semua posisi akan ditutup.")
-    kirim_notifikasi_telegram("⛔ *Perintah STOP*: Semua posisi akan ditutup.")
-    delete_state()
-    bot_state["force_exit"] = None
-
-if bot_state.get("force_restart"):
-    st.warning("🔁 Restart diminta dari Telegram.")
-    kirim_notifikasi_telegram("🔄 *Perintah Restart* dari Telegram dijalankan.")
-    delete_state()
-    st.rerun()

@@ -12,3 +12,19 @@ def check_exit_condition(price, trailing_sl, tp, hold, max_hold=100, direction='
         return price <= trailing_sl or price >= tp or hold > max_hold
     else:
         return price >= trailing_sl or price <= tp or hold > max_hold
+    
+open_positions = []
+
+def can_open_new_position(symbol, max_positions, max_symbols, open_positions):
+    if len(open_positions) >= max_positions:
+        return False
+    symbols_open = {pos['symbol'] for pos in open_positions}
+    if symbol not in symbols_open and len(symbols_open) >= max_symbols:
+        return False
+    return True
+
+def update_open_positions(symbol, side, qty, price, status, open_positions):
+    if status == 'open':
+        open_positions.append({'symbol': symbol, 'side': side, 'qty': qty, 'entry_price': price})
+    elif status == 'close':
+        open_positions[:] = [pos for pos in open_positions if not (pos['symbol'] == symbol and pos['side'] == side)]
