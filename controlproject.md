@@ -206,6 +206,62 @@ RajaDollar_trading/
     └── trade_history.db  ← akan otomatis terbuat saat runtime
 
 
+🎯 Tujuan Integrasi Modular Backtesting
+📁 Target Struktur:
+RajaDollar_trading/
+├── backtesting/
+│   ├── backtest_engine.py
+│   ├── data_loader.py
+│   ├── metrics.py
+│   └── results/
+
+✅ Fitur Utama:
+- Ambil data historis (OHLCV) dari CSV atau API (via data_loader.py)
+- Jalankan strategi generate_signals() dari strategies/scalping_strategy.py
+- Simulasikan entry/exit dengan TP/SL/Trailing via backtest_engine.py
+- Hitung metrik: Winrate, Profit Factor, Avg PnL → metrics.py
+- Simpan & tampilkan hasil ke results/ dan UI (opsional)
+
+🔧 LANGKAH PERTAMA
+Saya akan buatkan:
+- 📄 backtesting/data_loader.py
+- 📄 backtesting/backtest_engine.py
+
+✅ Modul backtesting sudah berhasil ditambahkan ke struktur RajaDollar_trading/:
+📁 backtesting/
+File	Fungsi
+- data_loader.py	Load data historis (CSV)
+- backtest_engine.py	Jalankan strategi dan simulasi entry/exit
+- metrics.py	Hitung winrate, profit factor, avg PnL
+- results/	(Opsional) Simpan hasil
+
+🖥️ backtest_ui.py (Streamlit) ## tidak di jelaskan lokasi file berada dimana ?
+- Upload file CSV
+- Jalankan run_backtest(...)
+- Tampilkan metrik dan grafik equity
+
+
+🎯 Tujuan Fitur
+Mengubah Telegram bot dari satu arah → dua arah:
+📩 Menerima perintah dari pengguna Telegram
+🧠 Menanggapi dengan logika trading atau status
+🔒 Aman hanya dari chat ID tertentu (whitelist)
+
+🧱 STRUKTUR FILE BARU
+📁 notifications/command_handler.py
+Modul ini akan:
+- Menerima webhook / polling update
+- Tangani perintah /status, /entry, /stop, dsb
+
+✨ FITUR PERINTAH YANG AKAN DUKUNG
+Command	Fungsi
+- /status	Menampilkan status posisi aktif + saldo
+- /entry BTCUSDT	Entry manual paksa simbol tertentu
+- /stop	Close semua posisi aktif
+- /restart	Restart bot / resume ulang
+
+🔧 LANGKAH PERTAMA – command_handler.py
+
 
 
 
