@@ -1,0 +1,15 @@
+streamlit
+pandas
+requests
+python-binance
+scikit-learn
+schedule
+python-telegram-bot
+python-dotenv
+numpy
+matplotlib
+plotly
+seaborn
+statsmodels
+yfinance
+ta-lib
