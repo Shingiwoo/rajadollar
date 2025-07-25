@@ -21,6 +21,6 @@ def load_symbol_filters(client, coins):
             min_qty = float(lot['minQty'])
             step_size = float(lot['stepSize'])
             notional_filter = next((f for f in s['filters'] if f['filterType'] in ['MIN_NOTIONAL','NOTIONAL']), None)
-            min_notional = float(notional_filter['minNotional']) if notional_filter else 0.0
+            min_notional = float(notional_filter.get('minNotional', notional_filter.get('notional', 0.0))) if notional_filter else 0.0
             symbol_filters[s['symbol']] = {'minQty': min_qty, 'stepSize': step_size, 'minNotional': min_notional}
     return symbol_filters

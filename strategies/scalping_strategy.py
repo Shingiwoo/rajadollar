@@ -17,13 +17,24 @@ def apply_indicators(df, ema_period=10, sma_period=20, rsi_period=14, bb_std=2):
     return df
 
 def generate_signals(df, score_threshold=1.4):
-    c1 = (df['ema'] > df['ma']) & (df['macd'] > df['macd_signal'])
-    c2 = (df['rsi'] > 40) & (df['rsi'] < 70)
-    c3 = df.get('ml_signal', 1) == 1
-    df['long_signal'] = (c1.astype(int) + 0.5 * c2.astype(int) + c3.astype(int)) >= score_threshold
-
-    c1s = (df['ema'] < df['ma']) & (df['macd'] < df['macd_signal'])
-    c2s = (df['rsi'] > 30) & (df['rsi'] < 60)
-    c3s = df.get('ml_signal', 0) == 0
-    df['short_signal'] = (c1s.astype(int) + 0.5 * c2s.astype(int) + c3s.astype(int)) >= score_threshold
+    # Long signals
+    conditions_long = [
+        (df['ema'] > df['ma']) & (df['macd'] > df['macd_signal']),
+        (df['rsi'] > 40) & (df['rsi'] < 70),
+        df['ml_signal'] == 1 if 'ml_signal' in df.columns else pd.Series([1]*len(df), index=df.index)
+    ]
+    df['long_signal'] = (conditions_long[0].astype(int) + 
+                         0.5 * conditions_long[1].astype(int) + 
+                         conditions_long[2].astype(int)) >= score_threshold
+    
+    # Short signals
+    conditions_short = [
+        (df['ema'] < df['ma']) & (df['macd'] < df['macd_signal']),
+        (df['rsi'] > 30) & (df['rsi'] < 60),
+        df['ml_signal'] == 0 if 'ml_signal' in df.columns else pd.Series([0]*len(df), index=df.index)
+    ]
+    df['short_signal'] = (conditions_short[0].astype(int) + 
+                          0.5 * conditions_short[1].astype(int) + 
+                          conditions_short[2].astype(int)) >= score_threshold
+    
     return df

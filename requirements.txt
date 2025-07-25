@@ -12,4 +12,5 @@ plotly
 seaborn
 statsmodels
 yfinance
-ta-lib
+ta
+
