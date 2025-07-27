@@ -3,6 +3,7 @@ import os, json, timeit
 from binance.client import Client
 from execution.ws_listener import start_price_stream
 from execution.ws_signal_listener import start_signal_stream, register_signal_handler
+from execution.monitor_exit_worker import start_exit_monitor
 from utils.logger import setup_logger
 from execution.signal_entry import on_signal
 
@@ -84,6 +85,7 @@ st.sidebar.markdown(f"📶 Latency: `{lat} ms`" if lat else "❌ Ping gagal")
 
 start_price_stream(api_key, api_secret, multi_symbols)
 start_signal_stream(api_key, api_secret, client, multi_symbols, strategy_params)
+start_exit_monitor(client)
 
 # --- WebSocket Signal Handler ---
 
