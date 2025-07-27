@@ -108,7 +108,7 @@ notif_exit  = st.sidebar.checkbox("Notifikasi Exit", True)
 notif_error = st.sidebar.checkbox("Notifikasi Error", True)
 notif_resume= st.sidebar.checkbox("Notifikasi Resume", True)
 
-status_pl = st.empty()
+status_placeholder = st.empty() 
 st.markdown(f"**Mode:** {mode}")
 
 # --- Capital ---
@@ -124,7 +124,7 @@ threads = {}
 status = {sym:"🔴" for sym in strategy_params}
 trading_on = False
 
-def trading_loop(symbol):
+def trading_loop(symbol):    
     try:
         status[symbol] = "🟢"
         params = strategy_params[symbol]
@@ -207,8 +207,28 @@ def trading_loop(symbol):
                     update_open_positions(symbol,p['side'],p['size'],mprice,'close',open_pos)
                     if notif_exit: kirim_notifikasi_exit(symbol,mprice,pnl,p.get('order_id',''))
             # update UI status
-            status_pl.markdown(" ".join([f"{s}:{status[s]}" for s in status]))
-            time.sleep(60)
+            status_placeholder.markdown(" ".join([f"{s}:{status[s]}" for s in status]))
+
+            # --- Monitoring Real-Time ---
+            try:
+                trade_df = get_all_trades()
+                total_pnl = trade_df['pnl'].sum()
+                trade_count = len(trade_df)
+                win_count = len(trade_df[trade_df['pnl'] > 0])
+                win_rate = (win_count / trade_count) * 100 if trade_count else 0
+                status_placeholder.markdown(
+                    f"""
+                    #### 🔍 Monitoring {symbol}
+                    - 🟢 PnL Total: `{total_pnl:.2f} USDT`
+                    - 📊 Jumlah Trade: `{trade_count}`
+                    - 🏆 Win Rate: `{win_rate:.1f}%`
+                    - 📌 Posisi Aktif: `{len(active)}`
+                    """
+                )
+            except Exception as monitor_err:
+                print(f"Monitoring error: {monitor_err}")
+
+            time.sleep(60)    
     except Exception as e:
         status[symbol]="🔴"
         if notif_error: kirim_notifikasi_telegram(f"⚠ [{symbol}] CRASH: {e}")
