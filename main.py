@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import json
 from datetime import datetime, date
+from typing import cast, Tuple
 
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
@@ -246,9 +247,12 @@ df = get_all_trades()
 if not df.empty:
     # Filter controls
     syms = st.multiselect("Filter Symbol", options=sorted(df['symbol'].unique()), default=sorted(df['symbol'].unique()))
-    dates: tuple[date, date] = st.date_input(
-        "Filter Date Range",
-        [df['entry_time'].min().date(), df['entry_time'].max().date()],
+    dates = cast(
+        Tuple[date, date],
+        st.date_input(
+            "Filter Date Range",
+            [df['entry_time'].min().date(), df['entry_time'].max().date()],
+        ),
     )
     df['entry_date'] = pd.to_datetime(df['entry_time']).dt.date
     mask = df['symbol'].isin(syms) & df['entry_date'].between(dates[0], dates[1])
