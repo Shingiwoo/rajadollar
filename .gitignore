@@ -8,3 +8,6 @@ notifications/__pycache__/
 execution/__pycache__/
 runtime_state/*.db
 runtime_state/*.json
+execution/__pycache__/
+models/__pycache__/
+utils/__pycache__/

@@ -1,16 +1,13 @@
 import streamlit as st
-import time
-import threading
+import time, threading, os, json, timeit, logging
 import pandas as pd
-import os
-import json
 from datetime import datetime, date
 from typing import cast, Tuple
 
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from execution.ws_listener import start_price_stream, shared_price
-
+from utils.logger import setup_logger
 
 # --- Import Modular ---
 from config import BINANCE_KEYS
@@ -40,6 +37,16 @@ from risk_management.risk_calculator import calculate_order_qty
 from database.sqlite_logger import log_trade, init_db, get_all_trades
 from models.trade import Trade
 from utils.data_provider import fetch_latest_data, load_symbol_filters, get_futures_balance
+setup_logger()
+
+def ping_latency(client):
+    try:
+        t0 = timeit.default_timer()
+        client.ping()
+        t1 = timeit.default_timer()
+        return round((t1 - t0) * 1000, 2)  # ms
+    except:
+        return None
 
 # --- Pilihan Mode Trading ---
 mode = st.sidebar.selectbox(
@@ -98,6 +105,17 @@ if st.sidebar.checkbox("Edit strategy_params.json (Expert)"):
         st.sidebar.success("Tersimpan, reload app!")
         st.stop()
 
+# --- Export Strategi Button ---
+st.sidebar.markdown("### 📤 Export Konfigurasi")
+config_json = json.dumps(strategy_params, indent=2)
+st.sidebar.download_button(
+    label="📥 Download strategy.json",
+    data=config_json,
+    file_name="strategy_params.json",
+    mime="application/json"
+)
+
+
 # --- UI: Pengaturan Multi-Symbol & Risk ---
 multi_symbols = st.sidebar.multiselect("Pilih Symbols", list(strategy_params.keys()), default=list(strategy_params.keys()))
 start_price_stream(api_key, api_secret, multi_symbols)
@@ -112,6 +130,9 @@ notif_entry = st.sidebar.checkbox("Notifikasi Entry", True)
 notif_exit  = st.sidebar.checkbox("Notifikasi Exit", True)
 notif_error = st.sidebar.checkbox("Notifikasi Error", True)
 notif_resume= st.sidebar.checkbox("Notifikasi Resume", True)
+lat = ping_latency(client)
+st.sidebar.markdown(f"📶 Latency API: `{lat} ms`" if lat else "❌ Ping gagal")
+
 
 status_placeholder = st.empty() 
 st.markdown(f"**Mode:** {mode}")
@@ -232,11 +253,12 @@ def trading_loop(symbol):
                 )
             except Exception as monitor_err:
                 print(f"Monitoring error: {monitor_err}")
-
+                
             time.sleep(60)    
     except Exception as e:
         status[symbol]="🔴"
         if notif_error: kirim_notifikasi_telegram(f"⚠ [{symbol}] CRASH: {e}")
+        logging.error(f"Loop crash {symbol}: {e}")
 
 # --- UI Controls ---
 col1,col2,col3 = st.columns(3)
@@ -290,6 +312,17 @@ if not df.empty:
     ).reset_index()
     st.subheader("📈 PnL & Win Rate per Symbol")
     st.table(summary)
+
+    # 
+    daily_summary = df.groupby('entry_date').agg(
+        total_pnl=('pnl', 'sum'),
+        total_trades=('pnl', 'size'),
+        win_rate=('pnl', lambda x: (x > 0).sum() / len(x) * 100 if len(x) > 0 else 0)
+    ).reset_index()
+    st.subheader("📅 Ringkasan Harian")
+    st.dataframe(daily_summary)
+    st.line_chart(daily_summary.set_index('entry_date')['total_pnl'])
+    
     # Log
     st.subheader("📋 Detail Trades")
     st.dataframe(dff[['entry_time','symbol','side','entry_price','exit_price','pnl']])
