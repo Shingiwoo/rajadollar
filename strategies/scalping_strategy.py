@@ -2,6 +2,38 @@ import pandas as pd
 from ta.trend import EMAIndicator, SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands, AverageTrueRange
+import pickle
+import os
+
+MODEL_PATH = "models/model_scalping.pkl"
+_ml_model = None
+
+def load_ml_model(path: str | None = None):
+    """Muat model ML dari file .pkl sekali saat startup."""
+    global _ml_model, MODEL_PATH
+    if path:
+        MODEL_PATH = path
+        _ml_model = None
+    if _ml_model is None and os.path.exists(MODEL_PATH):
+        with open(MODEL_PATH, "rb") as f:
+            _ml_model = pickle.load(f)
+    return _ml_model
+
+load_ml_model()
+
+def generate_ml_signal(df):
+    """Prediksi sinyal ML untuk bar terakhir."""
+    model = load_ml_model()
+    if model is None:
+        df.loc[df.index[-1], 'ml_signal'] = 1
+        return df
+    features = df[['ema', 'sma', 'macd', 'rsi']].fillna(method='ffill').iloc[-1:]
+    try:
+        pred = int(model.predict(features)[0])
+    except Exception:
+        pred = 1
+    df.loc[df.index[-1], 'ml_signal'] = pred
+    return df
 
 def apply_indicators(df, config=None, bb_std=2):
     if config is None:
@@ -40,9 +72,10 @@ def apply_indicators(df, config=None, bb_std=2):
 
 
 def generate_signals(df, score_threshold=1.4):
-    # Safety check untuk ML signal
+    # Hitung sinyal ML sebelum kalkulasi teknikal
     if 'ml_signal' not in df.columns:
-        df['ml_signal'] = 1  # fallback default: anggap valid
+        df['ml_signal'] = 1
+    df = generate_ml_signal(df)
 
     # Long signal conditions
     cond_long1 = (df['ema'] > df['sma']) & (df['macd'] > df['macd_signal'])
