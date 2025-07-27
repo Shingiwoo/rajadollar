@@ -1,35 +1,14 @@
 import streamlit as st
-import time, threading, os, json, timeit, logging
-import pandas as pd
-from datetime import datetime, date
-from typing import cast, Tuple
-
+import os, json, timeit
 from binance.client import Client
-from execution.ws_listener import start_price_stream, shared_price
+from execution.ws_listener import start_price_stream
 from execution.ws_signal_listener import start_signal_stream, register_signal_handler
 from utils.logger import setup_logger
+from execution.signal_entry import on_signal
 
 # --- Modular Imports ---
 from config import BINANCE_KEYS
-from notifications.notifier import (
-    kirim_notifikasi_telegram,
-    kirim_notifikasi_entry,
-    kirim_notifikasi_exit,
-)
-from utils.state_manager import save_state, load_state
-from utils.safe_api import safe_api_call_with_retry
-from strategies.scalping_strategy import apply_indicators, generate_signals
-from execution.order_router import safe_futures_create_order, adjust_quantity_to_min, get_mark_price
-from execution.slippage_handler import verify_price_before_order
-from risk_management.position_manager import (
-    apply_trailing_sl, can_open_new_position, update_open_positions,
-    check_exit_condition, is_position_open
-)
-from risk_management.risk_checker import is_liquidation_risk
-from risk_management.risk_calculator import calculate_order_qty
-from database.sqlite_logger import log_trade, init_db, get_all_trades
-from models.trade import Trade
-from utils.data_provider import fetch_latest_data, load_symbol_filters, get_futures_balance
+from database.sqlite_logger import init_db
 
 setup_logger()
 
@@ -107,44 +86,7 @@ start_price_stream(api_key, api_secret, multi_symbols)
 start_signal_stream(api_key, api_secret, client, multi_symbols, strategy_params)
 
 # --- WebSocket Signal Handler ---
-def on_signal(symbol, row):
-    try:
-        params = strategy_params[symbol]
-        filters = load_symbol_filters(client, [symbol])
-        active = load_state()
-        open_pos = []
-        price = shared_price.get(symbol, row['close'])
 
-        for side in ['long', 'short']:
-            sig = row['long_signal'] if side == 'long' else row['short_signal']
-            if not sig or not can_open_new_position(symbol, max_pos, max_sym, open_pos):
-                continue
-            if is_position_open(active, symbol, side) or is_liquidation_risk(price, side, leverage):
-                continue
-            if not verify_price_before_order(client, symbol, "BUY" if side == 'long' else "SELL", price, max_slip / 100):
-                continue
-
-            qty = calculate_order_qty(symbol, price, price*(0.99 if side=='long' else 1.01),
-                                       get_futures_balance(client) if auto_sync else 1000, risk_pct, leverage)
-            qty = adjust_quantity_to_min(symbol, qty, price, filters)
-            order = safe_api_call_with_retry(safe_futures_create_order, client, symbol,
-                                             "BUY" if side == 'long' else "SELL", "MARKET", qty, filters)
-            if order:
-                oid = order.get("orderId", str(int(time.time())))
-                now = datetime.utcnow().isoformat()
-                sl = price * (0.99 if side == 'long' else 1.01)
-                tp = price * (1.02 if side == 'long' else 0.98)
-                trade = Trade(symbol, side, now, price, qty, sl, tp, sl, order_id=oid,
-                              trailing_offset=params.get("trailing_offset", 0.25),
-                              trigger_threshold=params.get("trigger_threshold", 0.5))
-                active.append(trade.to_dict())
-                save_state(active)
-                update_open_positions(symbol, side, qty, price, 'open', open_pos)
-                if notif_entry:
-                    kirim_notifikasi_entry(symbol, price, sl, tp, qty, oid)
-    except Exception as e:
-        if notif_error:
-            kirim_notifikasi_telegram(f"⚠ [WebSocket Entry] {symbol} error: {e}")
 
 # Register handler
 for sym in multi_symbols:
