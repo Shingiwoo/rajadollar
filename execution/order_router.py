@@ -50,12 +50,24 @@ def adjust_quantity_to_min(symbol, quantity, price, symbol_filters):
     min_notional = float(filt.get('minNotional', 0.0))
     qty = max(quantity, min_qty)
     precision = int(-math.log10(step)) if step > 0 else 0
-    qty = math.floor(qty * (10 ** precision)) / (10 ** precision) if step > 0 else qty
-    # pastikan nilai minNotional
+
+    # round down to valid step size first
+    if step > 0:
+        qty = math.floor(qty / step) * step
+
+    # ensure notional requirement after rounding
     if min_notional > 0 and price * qty < min_notional:
         needed = min_notional / price
-        qty = max(qty, needed)
-        qty = math.floor(qty * (10 ** precision)) / (10 ** precision) if step > 0 else qty
+        if step > 0:
+            qty = math.ceil(needed / step) * step
+        else:
+            qty = needed
+        qty = max(qty, min_qty)
+
+    # final rounding to the allowed precision
+    if step > 0:
+        qty = round(qty, precision)
+
     return qty
 
 def get_mark_price(client, symbol):

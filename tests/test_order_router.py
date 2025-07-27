@@ -8,5 +8,14 @@ def test_adjust_quantity_to_min():
     assert qty >= 0.001  # minQty
     print("Qty after adjustment:", qty)
 
+def test_adjust_quantity_to_min_notional():
+    symbol_filters = {
+        "ETHUSDT": {"minQty": 0.001, "stepSize": 0.001, "minNotional": 5}
+    }
+    qty = adjust_quantity_to_min("ETHUSDT", 0.0025, 2000, symbol_filters)
+    assert qty * 2000 >= 5  # meets minNotional
+    assert qty == 0.003
+    print("Qty with notional check:", qty)
+
 if __name__ == "__main__":
     test_adjust_quantity_to_min()
