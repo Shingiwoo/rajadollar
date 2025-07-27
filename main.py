@@ -9,6 +9,8 @@ from typing import cast, Tuple
 
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
+from execution.ws_listener import start_price_stream, shared_price
+
 
 # --- Import Modular ---
 from config import BINANCE_KEYS
@@ -51,6 +53,8 @@ st.set_page_config(page_title="RajaDollar Trading", layout="wide")
 init_db()
 
 # --- Setup Binance Client ---
+api_key, api_secret = "", ""
+
 if mode == "Real Trading":
     api_key = BINANCE_KEYS["real"]["API_KEY"]
     api_secret = BINANCE_KEYS["real"]["API_SECRET"]
@@ -96,6 +100,7 @@ if st.sidebar.checkbox("Edit strategy_params.json (Expert)"):
 
 # --- UI: Pengaturan Multi-Symbol & Risk ---
 multi_symbols = st.sidebar.multiselect("Pilih Symbols", list(strategy_params.keys()), default=list(strategy_params.keys()))
+start_price_stream(api_key, api_secret, multi_symbols)
 auto_sync = st.sidebar.checkbox("Sync Modal dari Binance", True)
 leverage = st.sidebar.slider("Leverage",1,50,20)
 risk_pct = st.sidebar.number_input("Risk per Trade (%)",0.01,1.0,0.02)
@@ -147,7 +152,7 @@ def trading_loop(symbol):
             df = apply_indicators(df, params)
             df = generate_signals(df, params['score_threshold'])
             row = df.iloc[-1]
-            price = row['close']
+            price = shared_price.get(symbol, row['close'])
             # ENTRY logic (long/short)
             for side in ['long','short']:
                 sig = row['long_signal'] if side=='long' else row['short_signal']
