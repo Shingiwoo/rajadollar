@@ -78,18 +78,39 @@ else:
 STRAT_PATH = "config/strategy_params.json"
 if not os.path.exists(STRAT_PATH):
     default_cfg = {
-      "DOGEUSDT": {
-        "ema_period": 15, "sma_period": 14, "rsi_period": 15,
-        "macd_fast": 12, "macd_slow": 26, "macd_signal": 9,
-        "score_threshold": 2.0,
-        "trailing_offset": 0.25, "trigger_threshold": 0.5
-      },
-      "XRPUSDT": {
-        "ema_period": 22, "sma_period": 18, "rsi_period": 14,
-        "macd_fast": 12, "macd_slow": 26, "macd_signal": 9,
-        "score_threshold": 2.5,
-        "trailing_offset": 0.30, "trigger_threshold": 0.7
-      }
+        "DOGEUSDT": {
+            "ema_period": 22,
+            "sma_period": 18,
+            "rsi_period": 12,
+            "macd_fast": 12,
+            "macd_slow": 26,
+            "macd_signal": 9,
+            "score_threshold": 1.7,
+            "trailing_offset": 0.26,
+            "trigger_threshold": 0.6
+        },
+        "XRPUSDT": {
+            "ema_period": 15,
+            "sma_period": 14,
+            "rsi_period": 25,
+            "macd_fast": 12,
+            "macd_slow": 26,
+            "macd_signal": 9,
+            "score_threshold": 1.4,
+            "trailing_offset": 0.25,
+            "trigger_threshold": 0.5
+        },
+        "TURBOUSDT": {
+            "ema_period": 24,
+            "sma_period": 22,
+            "rsi_period": 14,
+            "macd_fast": 12,
+            "macd_slow": 26,
+            "macd_signal": 9,
+            "score_threshold": 2.1,
+            "trailing_offset": 0.25,
+            "trigger_threshold": 0.5
+        }
     }
     with open(STRAT_PATH,"w") as f:
         json.dump(default_cfg, f, indent=2)
@@ -104,6 +125,23 @@ if st.sidebar.checkbox("Edit strategy_params.json (Expert)"):
         with open(STRAT_PATH,"w") as f: f.write(txt)
         st.sidebar.success("Tersimpan, reload app!")
         st.stop()
+        
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📥 Import Konfigurasi")
+uploaded_file = st.sidebar.file_uploader("Unggah strategy_params.json", type=["json"])
+if uploaded_file is not None:
+    try:
+        new_config = json.load(uploaded_file)
+        if isinstance(new_config, dict):
+            with open(STRAT_PATH, "w") as f:
+                json.dump(new_config, f, indent=2)
+            st.sidebar.success("✅ Konfigurasi berhasil diimpor. Silakan reload app.")
+            st.stop()
+        else:
+            st.sidebar.error("❌ Format file tidak valid.")
+    except Exception as e:
+        st.sidebar.error(f"❌ Gagal memuat: {e}")
+
 
 # --- Export Strategi Button ---
 st.sidebar.markdown("### 📤 Export Konfigurasi")
