@@ -7,6 +7,7 @@ from typing import cast, Tuple
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from execution.ws_listener import start_price_stream, shared_price
+from execution.ws_signal_listener import start_signal_stream, register_signal_handler
 from utils.logger import setup_logger
 
 # --- Import Modular ---
@@ -298,15 +299,49 @@ def trading_loop(symbol):
         if notif_error: kirim_notifikasi_telegram(f"⚠ [{symbol}] CRASH: {e}")
         logging.error(f"Loop crash {symbol}: {e}")
 
+def on_signal(symbol, row):
+    try:
+        params = strategy_params[symbol]
+        price = shared_price.get(symbol, row['close'])
+        cap = get_futures_balance(client) if auto_sync else capital
+        filters = load_symbol_filters(client, [symbol])
+        active = load_state()
+        open_pos = []
+
+        for side in ['long', 'short']:
+            sig = row['long_signal'] if side == 'long' else row['short_signal']
+            if not sig: continue
+            if not can_open_new_position(symbol, max_pos, max_sym, open_pos): continue
+            if is_position_open(active, symbol, side): continue
+            if is_liquidation_risk(price, side, leverage): continue
+            qty = calculate_order_qty(symbol, price, price*(0.99 if side=='long' else 1.01), cap, risk_pct, leverage)
+            qty = adjust_quantity_to_min(symbol, qty, price, filters)
+            if not verify_price_before_order(client, symbol, "BUY" if side=='long' else "SELL", price, max_slip / 100): continue
+            order = safe_api_call_with_retry(safe_futures_create_order, client, symbol, "BUY" if side=='long' else "SELL", "MARKET", qty, filters)
+            if order:
+                oid = order.get("orderId", str(int(time.time())))
+                now = datetime.utcnow().isoformat()
+                sl = price * (0.99 if side == 'long' else 1.01)
+                tp = price * (1.02 if side == 'long' else 0.98)
+                trade = Trade(symbol, side, now, price, qty, sl, tp, sl, order_id=oid,
+                              trailing_offset=params.get("trailing_offset", 0.25),
+                              trigger_threshold=params.get("trigger_threshold", 0.5))
+                active.append(trade.to_dict())
+                save_state(active)
+                update_open_positions(symbol, side, qty, price, 'open', open_pos)
+                if notif_entry: kirim_notifikasi_entry(symbol, price, sl, tp, qty, oid)
+    except Exception as e:
+        logging.exception(f"on_signal error for {symbol}: {e}")
+
 # --- UI Controls ---
 col1,col2,col3 = st.columns(3)
 with col1:
     if st.button("Start Trading") and not trading_on:
-        trading_on=True
+        trading_on = True
+        start_signal_stream(api_key, api_secret, multi_symbols, strategy_params)
         for sym in multi_symbols:
-            t=threading.Thread(target=trading_loop,args=(sym,),daemon=True)
-            t.start(); threads[sym]=t
-        st.success("🚀 Dimulai: "+",".join(multi_symbols))
+            register_signal_handler(sym, on_signal)
+        st.success("🚀 Dimulai: " + ", ".join(multi_symbols))
 with col2:
     if st.button("Stop Trading") and trading_on:
         trading_on=False
