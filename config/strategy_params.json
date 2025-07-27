@@ -1,0 +1,35 @@
+{
+  "DOGEUSDT": {
+    "ema_period": 22,
+    "sma_period": 18,
+    "rsi_period": 12,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "score_threshold": 1.7,
+    "trailing_offset": 0.26,
+    "trigger_threshold": 0.6
+  },
+  "XRPUSDT": {
+    "ema_period": 15,
+    "sma_period": 14,
+    "rsi_period": 25,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "score_threshold": 1.4,
+    "trailing_offset": 0.25,
+    "trigger_threshold": 0.5
+  },
+  "TURBOUSDT": {
+    "ema_period": 24,
+    "sma_period": 22,
+    "rsi_period": 14,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "score_threshold": 2.1,
+    "trailing_offset": 0.25,
+    "trigger_threshold": 0.5
+  }
+}

@@ -1,4 +1,5 @@
 import pandas as pd
+import streamlit as st
 
 def fetch_latest_data(symbol, client, interval='5m', limit=100):
     klines = client.futures_klines(symbol=symbol, interval=interval, limit=limit)
@@ -24,3 +25,15 @@ def load_symbol_filters(client, coins):
             min_notional = float(notional_filter.get('minNotional', notional_filter.get('notional', 0.0))) if notional_filter else 0.0
             symbol_filters[s['symbol']] = {'minQty': min_qty, 'stepSize': step_size, 'minNotional': min_notional}
     return symbol_filters
+
+def get_futures_balance(client):
+    try:
+        balance = client.futures_account_balance()
+        for asset in balance:
+            if asset['asset'] == 'USDT':
+                return float(asset['balance'])
+        return 0.0
+    except Exception as e:
+        st.warning(f"Gagal sync saldo Binance: {e}")
+        return 0.0
+

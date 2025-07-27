@@ -13,3 +13,14 @@ def safe_api_call(func, *args, **kwargs):
     except Exception as e:
         print(f"API call error: {e}")
         return None
+
+def safe_api_call_with_retry(fn, *args, max_retry=3, delay=2, **kwargs):
+    for attempt in range(max_retry):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            if "429" in str(e) or "Too Many Requests" in str(e):
+                time.sleep(delay)
+            else:
+                raise
+    raise Exception(f"API rate limit exceeded after {max_retry} attempts.")
