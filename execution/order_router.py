@@ -1,5 +1,19 @@
-import math, logging
-from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT, TIME_IN_FORCE_GTC
+import math
+import logging
+try:
+    from binance.enums import (
+        SIDE_BUY,
+        SIDE_SELL,
+        ORDER_TYPE_MARKET,
+        ORDER_TYPE_LIMIT,
+        TIME_IN_FORCE_GTC,
+    )
+except ModuleNotFoundError:  # fallback ketika python-binance tidak tersedia
+    SIDE_BUY = "BUY"
+    SIDE_SELL = "SELL"
+    ORDER_TYPE_MARKET = "MARKET"
+    ORDER_TYPE_LIMIT = "LIMIT"
+    TIME_IN_FORCE_GTC = "GTC"
 from execution.slippage_handler import verify_price_before_order
 from risk_management.risk_checker import is_liquidation_risk
 
