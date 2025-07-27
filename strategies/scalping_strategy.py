@@ -3,7 +3,9 @@ from ta.trend import EMAIndicator, SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands, AverageTrueRange
 
-def apply_indicators(df, config, bb_std=2):
+def apply_indicators(df, config=None, bb_std=2):
+    if config is None:
+        config = {}
     ema_period = config.get('ema_period', 14)
     sma_period = config.get('sma_period', 14)
     rsi_period = config.get('rsi_period', 14)
