@@ -16,3 +16,11 @@ def kirim_notifikasi_telegram(pesan_markdown):
         requests.post(url, data=data)
     except Exception as e:
         print(f"[NOTIF] Gagal kirim Telegram: {e}")
+
+def kirim_notifikasi_entry(symbol, price, sl, tp, qty, order_id):
+    msg = f"📈 *LONG ENTRY* [id {order_id}]: {symbol} @ {price}, SL: {sl}, TP: {tp}, Size: {qty}"
+    kirim_notifikasi_telegram(msg)
+
+def kirim_notifikasi_exit(symbol, price, pnl, order_id):
+    msg = f"🔒 EXIT: [id {order_id}] {symbol} closed @ {price}, PnL: {pnl:.2f}"
+    kirim_notifikasi_telegram(msg)
