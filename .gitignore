@@ -1,13 +1,26 @@
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore IDE specific files
+.vscode/
+.idea/
+
+# Ignore environment files
 .env
-database/__pycache__/
-ml/__pycache__/
-risk_management/__pycache__/
-tests/__pycache__/
-utils/__pycache__/
-notifications/__pycache__/
-execution/__pycache__/
+.env.local
+.env.development
+.env.test
+
+# Ignore database and runtime files
 runtime_state/*.db
 runtime_state/*.json
-execution/__pycache__/
-models/__pycache__/
-utils/__pycache__/
+
+# Ignore log files
+*.log
+logs/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
