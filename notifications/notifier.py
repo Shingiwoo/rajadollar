@@ -1,4 +1,13 @@
-import os, requests
+import os
+try:
+    import requests
+except ModuleNotFoundError:
+    from types import SimpleNamespace
+
+    def _missing_post(*args, **kwargs):
+        raise RuntimeError("requests library not available")
+
+    requests = SimpleNamespace(post=_missing_post)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")

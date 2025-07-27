@@ -1,4 +1,3 @@
-import threading, json
 from binance import ThreadedWebsocketManager
 from utils.data_provider import fetch_latest_data
 from strategies.scalping_strategy import apply_indicators, generate_signals
