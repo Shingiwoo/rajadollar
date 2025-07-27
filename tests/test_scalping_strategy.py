@@ -1,18 +1,42 @@
-import numpy as np
 import pandas as pd
+import numpy as np
+import pytest
 from strategies.scalping_strategy import apply_indicators, generate_signals
 
-def test_apply_indicators_and_signals():
-    data = {
-        'close': np.linspace(100, 130, 30),
-        'high': np.linspace(101, 131, 30),
-        'low':  np.linspace(99, 129, 30)
-    }
-    df = pd.DataFrame(data)
-    df = apply_indicators(df)
-    df = generate_signals(df)
-    assert "long_signal" in df.columns
-    print("Signals:", df[['long_signal', 'short_signal']].tail())
+@pytest.fixture
+def dummy_df():
+    return pd.DataFrame({
+        'open':   [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        'high':   [1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5, 15.5],
+        'low':    [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5, 13.5, 14.5],
+        'close':  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        'volume': [1000]*15
+    })
 
-if __name__ == "__main__":
-    test_apply_indicators_and_signals()
+@pytest.fixture
+def config():
+    return {
+        'ema_period': 5,
+        'sma_period': 5,
+        'rsi_period': 5,
+        'macd_fast': 3,
+        'macd_slow': 6,
+        'macd_signal': 2,
+        'score_threshold': 1.0
+    }
+
+def test_apply_indicators(dummy_df, config):
+    df = apply_indicators(dummy_df.copy(), config)
+    assert all(col in df.columns for col in [
+        'ema', 'sma', 'macd', 'macd_signal',
+        'rsi', 'bb_upper', 'bb_lower', 'bb_width', 'atr'
+    ])
+    assert not df[['ema', 'sma', 'macd', 'rsi']].isnull().all().any()
+
+def test_generate_signals(dummy_df, config):
+    df = apply_indicators(dummy_df.copy(), config)
+    df = generate_signals(df, config['score_threshold'])
+    assert 'long_signal' in df.columns
+    assert 'short_signal' in df.columns
+    assert df['long_signal'].iloc[-1] in [True, False]
+    assert df['short_signal'].iloc[-1] in [True, False]
