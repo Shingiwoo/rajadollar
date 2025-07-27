@@ -1,4 +1,5 @@
-import math, logging
+import math
+import logging
 try:
     from binance.enums import (
         SIDE_BUY,
