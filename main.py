@@ -6,6 +6,7 @@ from execution.ws_signal_listener import start_signal_stream, register_signal_ha
 from execution.monitor_exit_worker import start_exit_monitor
 from utils.logger import setup_logger
 from execution.signal_entry import on_signal
+from utils.resume_helper import handle_resume
 
 # --- Modular Imports ---
 from config import BINANCE_KEYS
@@ -84,6 +85,9 @@ lat = ping_latency(client)
 st.sidebar.markdown(f"📶 Latency: `{lat} ms`" if lat else "❌ Ping gagal")
 
 start_price_stream(api_key, api_secret, multi_symbols)
+active_positions = handle_resume(resume_flag, notif_resume)
+if resume_flag and active_positions:
+    st.sidebar.success(f"Resume {len(active_positions)} posisi aktif")
 start_signal_stream(api_key, api_secret, client, multi_symbols, strategy_params)
 start_exit_monitor(client)
 
