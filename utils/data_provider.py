@@ -1,8 +1,13 @@
 import pandas as pd
 import streamlit as st
+from utils.safe_api import safe_api_call_with_retry
 
 def fetch_latest_data(symbol, client, interval='5m', limit=100):
-    klines = client.futures_klines(symbol=symbol, interval=interval, limit=limit)
+    klines = safe_api_call_with_retry(
+        client.futures_klines, symbol=symbol, interval=interval, limit=limit
+    )
+    if klines is None:
+        return pd.DataFrame()
     df = pd.DataFrame(klines, columns=[
         'timestamp', 'open', 'high', 'low', 'close', 'volume',
         'close_time', 'quote_asset_volume', 'trades', 'taker_buy_base', 'taker_buy_quote', 'ignored'
@@ -15,7 +20,9 @@ def fetch_latest_data(symbol, client, interval='5m', limit=100):
 
 def load_symbol_filters(client, coins):
     symbol_filters = {}
-    info = client.futures_exchange_info()
+    info = safe_api_call_with_retry(client.futures_exchange_info)
+    if not info:
+        return symbol_filters
     for s in info['symbols']:
         if s['symbol'] in coins:
             lot = next(f for f in s['filters'] if f['filterType'] == 'LOT_SIZE')
@@ -27,13 +34,12 @@ def load_symbol_filters(client, coins):
     return symbol_filters
 
 def get_futures_balance(client):
-    try:
-        balance = client.futures_account_balance()
-        for asset in balance:
-            if asset['asset'] == 'USDT':
-                return float(asset['balance'])
+    balance = safe_api_call_with_retry(client.futures_account_balance)
+    if not balance:
+        st.warning("Gagal sync saldo Binance")
         return 0.0
-    except Exception as e:
-        st.warning(f"Gagal sync saldo Binance: {e}")
-        return 0.0
+    for asset in balance:
+        if asset['asset'] == 'USDT':
+            return float(asset['balance'])
+    return 0.0
 

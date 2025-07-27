@@ -16,6 +16,7 @@ except ModuleNotFoundError:  # fallback ketika python-binance tidak tersedia
     TIME_IN_FORCE_GTC = "GTC"
 from execution.slippage_handler import verify_price_before_order
 from risk_management.risk_checker import is_liquidation_risk
+from utils.safe_api import safe_api_call_with_retry
 
 def adjust_to_step(value, step):
     return float(int(value / step) * step)
@@ -39,7 +40,7 @@ def safe_futures_create_order(client, symbol, side, type, quantity, symbol_steps
         params["timeInForce"] = timeInForce
     if closePosition is not None:
         params["closePosition"] = closePosition
-    return client.futures_create_order(**params)
+    return safe_api_call_with_retry(client.futures_create_order, **params)
 
 def execute_entry(client, symbol, side, expected_price, size, leverage, symbol_steps, max_slippage=0.005):
     # Cek anti-slippage
@@ -86,21 +87,19 @@ def adjust_quantity_to_min(symbol, quantity, price, symbol_filters):
 
 def get_mark_price(client, symbol):
     """Ambil harga mark price futures untuk eksekusi close/stop yang aman."""
-    try:
-        result = client.futures_mark_price(symbol=symbol)
-        return float(result['markPrice'])
-    except Exception as e:
-        logging.error(f"Gagal dapat mark price {symbol}: {e}")
+    result = safe_api_call_with_retry(client.futures_mark_price, symbol=symbol)
+    if not result:
+        logging.error(f"Gagal dapat mark price {symbol}")
         return None
+    return float(result['markPrice'])
 
 def get_current_mark_price(client, symbol):
     """Ambil mark price terbaru dari Binance Futures untuk close/stop order."""
-    try:
-        ticker = client.futures_mark_price(symbol=symbol)
-        return float(ticker['markPrice'])
-    except Exception as e:
-        print(f"[ERROR] Gagal ambil mark price {symbol}: {e}")
+    ticker = safe_api_call_with_retry(client.futures_mark_price, symbol=symbol)
+    if not ticker:
+        print(f"[ERROR] Gagal ambil mark price {symbol}")
         return None
+    return float(ticker['markPrice'])
 
 def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippage=0.005):
     """Order market close di harga MARK PRICE, aman dari error -4131."""
@@ -109,14 +108,19 @@ def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippag
         print(f"[ERROR] Tidak bisa ambil mark price, skip close {symbol}.")
         return None
     # Cek slippage (optional)
-    current_price = float(client.futures_symbol_ticker(symbol=symbol)['price'])
+    ticker = safe_api_call_with_retry(client.futures_symbol_ticker, symbol=symbol)
+    if not ticker:
+        print(f"[ERROR] Tidak bisa ambil harga pasar {symbol}")
+        return None
+    current_price = float(ticker['price'])
     diff = abs(mark_price - current_price) / current_price
     if diff > max_slippage:
         print(f"[WARNING] Mark price {mark_price} terlalu jauh dari harga pasar {current_price}, slippage {diff*100:.2f}%")
     # Patch: Eksekusi order market di harga mark_price (pakai quantity valid)
     try:
         qty_adj = adjust_to_step(qty, symbol_steps[symbol]['step'])
-        order = client.futures_create_order(
+        order = safe_api_call_with_retry(
+            client.futures_create_order,
             symbol=symbol,
             side=side,
             type='MARKET',
