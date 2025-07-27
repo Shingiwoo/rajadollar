@@ -24,3 +24,10 @@ def kirim_notifikasi_entry(symbol, price, sl, tp, qty, order_id):
 def kirim_notifikasi_exit(symbol, price, pnl, order_id):
     msg = f"🔒 EXIT: [id {order_id}] {symbol} closed @ {price}, PnL: {pnl:.2f}"
     kirim_notifikasi_telegram(msg)
+
+def kirim_notifikasi_ml_training(msg: str):
+    try:
+        kirim_notifikasi_telegram(f"🤖 *ML Model Update*\n{msg}")
+    except Exception as e:
+        print(f"[ML Notify Error] {e}")
+

@@ -1,8 +1,11 @@
 import os
+import glob
 import requests
 from ml.training import train_model
 import matplotlib.pyplot as plt
 from database.sqlite_logger import get_all_trades
+from notifications.notifier import kirim_notifikasi_telegram
+from ml.training import train_model
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 AUTHORIZED_CHAT_IDS = [os.getenv("TELEGRAM_CHAT_ID")]
@@ -54,7 +57,17 @@ def handle_command(command_text, chat_id, bot_state):
     elif command_text == "/pnl":
         df = get_all_trades()
         total_pnl = df['pnl'].sum() if not df.empty else 0
-        send_reply(chat_id, f"💰 Total PnL saat ini: *${total_pnl:.2f}*")
+        send_reply(chat_id, f"💰 Total PnL saat ini: *${total_pnl:.2f}*")  
+    
+    elif command_text.lower() == "/mltrain":
+        try:
+            train_model()
+            latest_log = sorted(glob.glob("logs/ml_training_*.txt"))[-1]
+            with open(latest_log, "r") as f:
+                content = f.read()
+            send_reply(chat_id, f"📡 *ML retraining selesai:*\n```json\n{content}\n```")
+        except Exception as e:
+            send_reply(chat_id, f"❌ ML training gagal: {str(e)}")
 
     elif command_text == "/log":
         df = get_all_trades()
@@ -90,7 +103,7 @@ def handle_command(command_text, chat_id, bot_state):
         if len(df) < 10:
             send_reply(chat_id, "📉 Tidak cukup data untuk training.")
         else:
-            train_model(df)
+            train_model()
             send_reply(chat_id, "✅ *Model berhasil dilatih ulang!*")
 
     elif command_text == "/chart":
