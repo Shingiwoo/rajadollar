@@ -1,1 +1,10 @@
 .env
+database/__pycache__/
+ml/__pycache__/
+risk_management/__pycache__/
+tests/__pycache__/
+utils/__pycache__/
+notifications/__pycache__/
+execution/__pycache__/
+runtime_state/*.db
+runtime_state/*.json

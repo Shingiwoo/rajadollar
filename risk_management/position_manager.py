@@ -29,4 +29,10 @@ def update_open_positions(symbol, side, qty, price, status, open_positions):
     elif status == 'close':
         open_positions[:] = [pos for pos in open_positions if not (pos['symbol'] == symbol and pos['side'] == side)]
 
+def is_position_open(active_positions, symbol, side):
+    for pos in active_positions:
+        if pos['symbol'] == symbol and pos['side'] == side:
+            return True
+    return False
+
 
