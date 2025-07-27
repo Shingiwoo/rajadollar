@@ -1,6 +1,6 @@
 import time
 import logging
-from datetime import datetime
+import datetime
 from models.trade import Trade
 from utils.state_manager import save_state, load_state
 from risk_management.position_manager import (
@@ -50,7 +50,7 @@ def on_signal(
 
             if order:
                 oid = order.get("orderId", str(int(time.time())))
-                now = datetime.utcnow().isoformat()
+                now = datetime.datetime.now(datetime.UTC).isoformat()
                 sl = price * (0.99 if side == 'long' else 1.01)
                 tp = price * (1.02 if side == 'long' else 0.98)
                 tr_off = params.get("trailing_offset", 0.25)
