@@ -27,7 +27,7 @@ def generate_ml_signal(df):
     if model is None:
         df.loc[df.index[-1], 'ml_signal'] = 1
         return df
-    features = df[['ema', 'sma', 'macd', 'rsi']].fillna(method='ffill').iloc[-1:]
+    features = df[['ema', 'sma', 'macd', 'rsi']].ffill().iloc[-1:]
     try:
         pred = int(model.predict(features)[0])
     except Exception:

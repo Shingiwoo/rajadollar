@@ -10,7 +10,7 @@ import threading
 import json
 import pandas as pd
 import os, json
-from datetime import datetime
+import datetime
 from notifications.notifier import kirim_notifikasi_ml_training
 
 def train_model():
@@ -28,13 +28,13 @@ def train_model():
 
     # Eval
     acc = model.score(X_test, y_test)
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
     msg = f"✅ *ML Training Selesai*\n• Akurasi: `{acc:.2%}`\n• Data: `{len(X)}` baris\n• Jam: `{now}`"
     kirim_notifikasi_ml_training(msg)
 
     # Simpan log
     os.makedirs("logs", exist_ok=True)
-    log_path = f"logs/ml_training_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
+    log_path = f"logs/ml_training_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
     with open(log_path, "w") as f:
         log_data = {
             "timestamp": now,

@@ -1,6 +1,6 @@
 import threading
 import time
-from datetime import datetime
+import datetime
 from typing import Dict, Any
 
 from execution.order_router import safe_close_order_market
@@ -45,7 +45,7 @@ def process_exit_positions(client, symbol_steps: Dict[str, Any]):
                 symbol_steps,
             )
             trade["exit_price"] = price
-            trade["exit_time"] = datetime.utcnow().isoformat()
+            trade["exit_time"] = datetime.datetime.now(datetime.UTC).isoformat()
             trade["pnl"] = (
                 (price - trade["entry_price"]) * trade["size"]
                 if trade["side"] == "long"
