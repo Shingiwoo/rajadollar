@@ -4,7 +4,7 @@ import threading
 import pandas as pd
 import os
 import json
-from datetime import datetime
+from datetime import datetime, date
 
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
@@ -170,8 +170,19 @@ def trading_loop(symbol):
                         tp=price*(1.02 if side=='long' else 0.98)
                         tr_off = params.get('trailing_offset',0.25)
                         trg_thr= params.get('trigger_threshold',0.5)
-                        trade=Trade(symbol,side,now,price,qty,sl,tp,sl,oid,
-                                    trailing_offset=tr_off, trigger_threshold=trg_thr)
+                        trade = Trade(
+                            symbol,
+                            side,
+                            now,
+                            price,
+                            qty,
+                            sl,
+                            tp,
+                            sl,
+                            order_id=oid,
+                            trailing_offset=tr_off,
+                            trigger_threshold=trg_thr,
+                        )
                         active.append(trade.to_dict()); save_state(active)
                         update_open_positions(symbol,side,qty,price,'open',open_pos)
                         if notif_entry: kirim_notifikasi_entry(symbol,price,sl,tp,qty,oid)
@@ -235,7 +246,10 @@ df = get_all_trades()
 if not df.empty:
     # Filter controls
     syms = st.multiselect("Filter Symbol", options=sorted(df['symbol'].unique()), default=sorted(df['symbol'].unique()))
-    dates = st.date_input("Filter Date Range", [df['entry_time'].min().date(), df['entry_time'].max().date()])
+    dates: tuple[date, date] = st.date_input(
+        "Filter Date Range",
+        [df['entry_time'].min().date(), df['entry_time'].max().date()],
+    )
     df['entry_date'] = pd.to_datetime(df['entry_time']).dt.date
     mask = df['symbol'].isin(syms) & df['entry_date'].between(dates[0], dates[1])
     dff = df[mask]
