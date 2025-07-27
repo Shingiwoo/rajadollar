@@ -273,3 +273,13 @@ if not df.empty:
 else:
     st.info("Belum ada trade tercatat.")
 
+# --- DOWNLOAD LOG HISTORI ---
+if not df.empty:
+    csv = df.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📥 Download CSV Histori",
+        data=csv,
+        file_name='trade_history.csv',
+        mime='text/csv'
+    )
+
