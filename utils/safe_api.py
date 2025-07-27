@@ -1,6 +1,11 @@
 import time
 import logging
-from binance.error import ClientError
+try:
+    from binance.error import ClientError
+except ModuleNotFoundError:
+    class ClientError(Exception):
+        """Fallback ClientError ketika modul binance tidak tersedia."""
+        pass
 
 _last_api_call = 0
 
