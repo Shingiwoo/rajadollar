@@ -17,6 +17,7 @@ except ModuleNotFoundError:  # fallback ketika python-binance tidak tersedia
 from execution.slippage_handler import verify_price_before_order
 from risk_management.risk_checker import is_liquidation_risk
 from utils.safe_api import safe_api_call_with_retry
+from notifications.notifier import laporkan_error
 
 def adjust_to_step(value, step):
     return float(int(value / step) * step)
@@ -89,7 +90,7 @@ def get_mark_price(client, symbol):
     """Ambil harga mark price futures untuk eksekusi close/stop yang aman."""
     result = safe_api_call_with_retry(client.futures_mark_price, symbol=symbol)
     if not result:
-        logging.error(f"Gagal dapat mark price {symbol}")
+        laporkan_error(f"Gagal dapat mark price {symbol}")
         return None
     return float(result['markPrice'])
 
@@ -97,7 +98,8 @@ def get_current_mark_price(client, symbol):
     """Ambil mark price terbaru dari Binance Futures untuk close/stop order."""
     ticker = safe_api_call_with_retry(client.futures_mark_price, symbol=symbol)
     if not ticker:
-        print(f"[ERROR] Gagal ambil mark price {symbol}")
+        pesan = f"Gagal ambil mark price {symbol}"
+        laporkan_error(pesan)
         return None
     return float(ticker['markPrice'])
 
@@ -105,12 +107,12 @@ def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippag
     """Order market close di harga MARK PRICE, aman dari error -4131."""
     mark_price = get_current_mark_price(client, symbol)
     if mark_price is None:
-        print(f"[ERROR] Tidak bisa ambil mark price, skip close {symbol}.")
+        laporkan_error(f"Tidak bisa ambil mark price, skip close {symbol}.")
         return None
     # Cek slippage (optional)
     ticker = safe_api_call_with_retry(client.futures_symbol_ticker, symbol=symbol)
     if not ticker:
-        print(f"[ERROR] Tidak bisa ambil harga pasar {symbol}")
+        laporkan_error(f"Tidak bisa ambil harga pasar {symbol}")
         return None
     current_price = float(ticker['price'])
     diff = abs(mark_price - current_price) / current_price
@@ -128,6 +130,6 @@ def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippag
         )
         return order
     except Exception as e:
-        print(f"[ERROR] Gagal close market order {symbol}: {e}")
+        laporkan_error(f"Gagal close market order {symbol}: {e}")
         return None
 

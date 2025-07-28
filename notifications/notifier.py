@@ -1,4 +1,5 @@
 import os
+import datetime
 try:
     import requests
 except ModuleNotFoundError:
@@ -39,4 +40,18 @@ def kirim_notifikasi_ml_training(msg: str):
         kirim_notifikasi_telegram(f"🤖 *ML Model Update*\n{msg}")
     except Exception as e:
         print(f"[ML Notify Error] {e}")
+
+ERROR_LOG_FILE = "log_error.txt"
+
+def catat_error(pesan: str):
+    ts = datetime.datetime.now().isoformat()
+    with open(ERROR_LOG_FILE, "a") as f:
+        f.write(f"{ts} {pesan}\n")
+
+def laporkan_error(pesan: str):
+    catat_error(pesan)
+    try:
+        kirim_notifikasi_telegram(f"❌ {pesan}")
+    except Exception as e:
+        print(f"[NOTIF] Gagal kirim error: {e}")
 
