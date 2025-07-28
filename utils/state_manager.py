@@ -2,6 +2,7 @@ import os
 import json
 import tempfile
 import shutil
+import logging
 from typing import Any, List, Dict
 
 STATE_DIR = "./runtime_state"
@@ -63,6 +64,7 @@ def load_state() -> List[Dict[str, Any]]:
                 with open(filepath, "r") as f:
                     return json.load(f)
             except (json.JSONDecodeError, OSError, IOError, ValueError):
+                logging.error(f"Gagal load state dari {filepath}")
                 continue
     return []
 

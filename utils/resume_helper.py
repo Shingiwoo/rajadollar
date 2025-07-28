@@ -1,6 +1,7 @@
 from typing import List, Dict, Set, Tuple
 from datetime import datetime
 from utils.state_manager import load_state, save_state
+from utils.safe_api import safe_api_call_with_retry
 from notifications.notifier import kirim_notifikasi_telegram
 
 def handle_resume(resume_flag: bool, notif_resume: bool) -> list:
@@ -21,7 +22,9 @@ def handle_resume(resume_flag: bool, notif_resume: bool) -> list:
 def sync_with_binance(client) -> List[Dict]:
     """Sync between Binance and local state with auto-recovery."""
     try:
-        remote_positions = client.futures_position_information()
+        remote_positions = safe_api_call_with_retry(
+            client.futures_position_information
+        )
     except Exception as e:
         kirim_notifikasi_telegram(f"🔴 Sync failed: {str(e)}")
         print(f"[SYNC ERROR] {str(e)}")

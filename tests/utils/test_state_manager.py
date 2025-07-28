@@ -21,7 +21,7 @@ def test_save_and_load(tmp_path, monkeypatch):
     assert os.path.exists(sm.STATE_FILE)
     assert os.path.exists(sm.BACKUP_FILE)
 
-def test_load_fallback_to_backup(tmp_path, monkeypatch):
+def test_load_fallback_to_backup(tmp_path, monkeypatch, caplog):
     """Test fallback to backup when main file is corrupted"""
     # Setup
     monkeypatch.setattr(sm, "STATE_DIR", str(tmp_path))
@@ -36,10 +36,12 @@ def test_load_fallback_to_backup(tmp_path, monkeypatch):
         f.write("invalid json content")
     
     # Exercise
-    loaded_data = sm.load_state()
+    with caplog.at_level('ERROR'):
+        loaded_data = sm.load_state()
     
     # Verify
     assert loaded_data == test_data
+    assert any('Gagal load state' in rec.message for rec in caplog.records)
 
 def test_load_empty_when_no_files(tmp_path, monkeypatch):
     """Test returns empty list when no state files exist"""
