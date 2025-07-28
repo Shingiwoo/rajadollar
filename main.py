@@ -7,7 +7,7 @@ from execution.exit_monitor import start_exit_monitor
 from utils.data_provider import load_symbol_filters
 from utils.logger import setup_logger
 from execution.signal_entry import on_signal
-from utils.resume_helper import handle_resume
+from utils.resume_helper import handle_resume, sync_with_binance
 
 # --- Modular Imports ---
 from config import BINANCE_KEYS
@@ -84,9 +84,11 @@ notif_error = st.sidebar.checkbox("Notifikasi Error", True)
 notif_resume = st.sidebar.checkbox("Notifikasi Resume", True)
 lat = ping_latency(client)
 st.sidebar.markdown(f"📶 Latency: `{lat} ms`" if lat else "❌ Ping gagal")
-
+api_key, api_secret = "", ""
 start_price_stream(api_key, api_secret, multi_symbols)
 active_positions = handle_resume(resume_flag, notif_resume)
+if resume_flag:
+    sync_with_binance(client)
 if resume_flag and active_positions:
     st.sidebar.success(f"Resume {len(active_positions)} posisi aktif")
 start_signal_stream(api_key, api_secret, client, multi_symbols, strategy_params)

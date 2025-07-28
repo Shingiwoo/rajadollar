@@ -7,8 +7,8 @@ from execution.order_router import safe_close_order_market
 from execution.ws_listener import get_price
 from risk_management.position_manager import apply_trailing_sl, check_exit_condition
 from utils.state_manager import load_state, save_state
-from notifications.notifier import kirim_notifikasi_exit
-from database.sqlite_logger import log_trade
+from notifications.notifier import kirim_notifikasi_exit, kirim_notifikasi_telegram
+from database.sqlite_logger import log_trade, get_all_trades
 from models.trade import Trade
 
 
