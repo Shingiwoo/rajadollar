@@ -42,7 +42,11 @@ def handle_command(command_text, chat_id, bot_state):
         send_reply(chat_id, msg)
 
     elif command_text.startswith("/entry"):
-        _, symbol = command_text.split()
+        parts = command_text.split()
+        if len(parts) < 2:
+            send_reply(chat_id, "Format perintah salah. Gunakan /entry SYMBOL")
+            return
+        _, symbol = parts
         bot_state["manual_entry"] = symbol.upper()
         send_reply(chat_id, f"📩 Manual ENTRY dikirimkan: {symbol.upper()}")
 
