@@ -1,9 +1,10 @@
 import os
 import glob
 import requests
+import logging
 from ml.training import train_model
 import matplotlib.pyplot as plt
-from database.sqlite_logger import get_all_trades
+from database.sqlite_logger import get_all_trades, export_trades_csv
 from notifications.notifier import kirim_notifikasi_telegram
 from ml.training import train_model
 
@@ -31,14 +32,30 @@ def send_photo(chat_id, image_path):
     with open(image_path, 'rb') as img:
         requests.post(url, data={"chat_id": chat_id}, files={"photo": img})
 
+def send_document(chat_id, file_path):
+    url = f"{API_URL}/sendDocument"
+    with open(file_path, 'rb') as f:
+        requests.post(url, data={"chat_id": chat_id}, files={"document": f})
+
 
 def handle_command(command_text, chat_id, bot_state):
+    logging.info(f"Telegram command from {chat_id}: {command_text}")
     if str(chat_id) not in AUTHORIZED_CHAT_IDS:
         send_reply(chat_id, "❌ Akses ditolak.")
         return
 
     if command_text == "/status":
-        msg = f"✅ Bot Aktif. Posisi: {len(bot_state.get('positions', []))}"
+        df = get_all_trades()
+        last = df.iloc[0] if not df.empty else None
+        equity = df['pnl'].sum() if not df.empty else 0
+        msg = (
+            f"✅ Bot Aktif\nPosisi terbuka: {len(bot_state.get('positions', []))}\n"
+            f"Equity: {equity:.2f}"
+        )
+        if last is not None:
+            msg += (
+                f"\nTrade terakhir {last['symbol']} {last['side']} PnL {last['pnl']:.2f}"
+            )
         send_reply(chat_id, msg)
 
     elif command_text.startswith("/entry"):
@@ -61,7 +78,18 @@ def handle_command(command_text, chat_id, bot_state):
     elif command_text == "/pnl":
         df = get_all_trades()
         total_pnl = df['pnl'].sum() if not df.empty else 0
-        send_reply(chat_id, f"💰 Total PnL saat ini: *${total_pnl:.2f}*")  
+        win = (df['pnl'] > 0).sum() if not df.empty else 0
+        wr = (win / len(df)) * 100 if not df.empty else 0
+        send_reply(chat_id, f"💰 PnL: *${total_pnl:.2f}* | Win Rate: {wr:.2f}%")
+
+    elif command_text == "/export":
+        df = get_all_trades()
+        if df.empty:
+            send_reply(chat_id, "📭 Tidak ada data untuk diexport.")
+        else:
+            path = export_trades_csv("runtime_state/export.csv")
+            send_document(chat_id, path)
+            send_reply(chat_id, "📤 File CSV dikirim.")
     
     elif command_text.lower() == "/mltrain":
         try:

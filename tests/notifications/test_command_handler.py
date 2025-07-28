@@ -20,7 +20,8 @@ def base_env():
 def test_status_command():
     with patch.dict(os.environ, base_env()):
         ch = reload_module()
-        with patch("notifications.command_handler.requests.post") as mock_post:
+        with patch("notifications.command_handler.requests.post") as mock_post, \
+             patch.object(ch, "get_all_trades", return_value=pd.DataFrame()):
             bot_state = {"positions": []}
             ch.handle_command("/status", "chat", bot_state)
             assert mock_post.call_count == 1
@@ -110,4 +111,31 @@ def test_summary_command():
             ch.handle_command("/summary", "chat", bot_state)
             data = mock_post.call_args.kwargs["data"]
             assert "Ringkasan Trading" in data["text"]
+
+
+def test_pnl_command():
+    with patch.dict(os.environ, base_env()):
+        ch = reload_module()
+        df = pd.DataFrame({"pnl": [5.0, -2.0]})
+        with patch.object(ch, "get_all_trades", return_value=df), \
+             patch("notifications.command_handler.requests.post") as mock_post:
+            bot_state = {}
+            ch.handle_command("/pnl", "chat", bot_state)
+            data = mock_post.call_args.kwargs["data"]
+            assert "PnL" in data["text"]
+
+
+def test_export_command(tmp_path):
+    with patch.dict(os.environ, base_env()):
+        ch = reload_module()
+        df = pd.DataFrame({"pnl": [1.0]})
+        with patch.object(ch, "get_all_trades", return_value=df), \
+             patch("notifications.command_handler.export_trades_csv", return_value=str(tmp_path/"export.csv")) as mock_exp, \
+             patch("notifications.command_handler.requests.post") as mock_post, \
+             patch("builtins.open", mock_open(read_data="csv")):
+            bot_state = {}
+            ch.handle_command("/export", "chat", bot_state)
+            assert mock_exp.call_count == 1
+            # called twice: sendDocument then sendMessage
+            assert mock_post.call_count == 2
 
