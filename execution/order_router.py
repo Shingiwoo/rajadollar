@@ -1,5 +1,7 @@
 import math
-import logging
+import time
+from typing import Optional, Dict, Any
+
 try:
     from binance.enums import (
         SIDE_BUY,
@@ -8,12 +10,12 @@ try:
         ORDER_TYPE_LIMIT,
         TIME_IN_FORCE_GTC,
     )
-except ModuleNotFoundError:  # fallback ketika python-binance tidak tersedia
-    SIDE_BUY = "BUY"
-    SIDE_SELL = "SELL"
-    ORDER_TYPE_MARKET = "MARKET"
-    ORDER_TYPE_LIMIT = "LIMIT"
+except ModuleNotFoundError:
+    # Fallback values
+    SIDE_BUY, SIDE_SELL = "BUY", "SELL"
+    ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT = "MARKET", "LIMIT"
     TIME_IN_FORCE_GTC = "GTC"
+    
 from execution.slippage_handler import verify_price_before_order
 from risk_management.risk_checker import is_liquidation_risk
 from utils.safe_api import safe_api_call_with_retry
@@ -42,6 +44,44 @@ def safe_futures_create_order(client, symbol, side, type, quantity, symbol_steps
     if closePosition is not None:
         params["closePosition"] = closePosition
     return safe_api_call_with_retry(client.futures_create_order, **params)
+
+def wait_until_filled(
+    client: Any,
+    symbol: str,
+    order_id: str,
+    timeout: float = 10.0,
+    check_interval: float = 0.5
+) -> Optional[Dict[str, Any]]:
+    """Menunggu hingga order terisi penuh atau timeout tercapai."""
+    start_time = time.time()
+    
+    while (time.time() - start_time) < timeout:
+        order = safe_api_call_with_retry(
+            client.futures_get_order,
+            symbol=symbol,
+            orderId=order_id
+        )
+        
+        if order and order.get("status") == "FILLED":
+            return order
+            
+        time.sleep(check_interval)
+    
+    # Cek status terakhir sebelum timeout
+    last_order = safe_api_call_with_retry(
+        client.futures_get_order,
+        symbol=symbol,
+        orderId=order_id
+    )
+    
+    if last_order and last_order.get("status") == "FILLED":
+        return last_order
+        
+    last_status = last_order.get("status") if last_order else "UNKNOWN"
+    raise TimeoutError(
+        f"Order {order_id} ({symbol}) gagal terisi dalam {timeout} detik. "
+        f"Status terakhir: {last_status}"
+    )
 
 def execute_entry(client, symbol, side, expected_price, size, leverage, symbol_steps, max_slippage=0.005):
     # Cek anti-slippage
@@ -132,4 +172,3 @@ def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippag
     except Exception as e:
         laporkan_error(f"Gagal close market order {symbol}: {e}")
         return None
-

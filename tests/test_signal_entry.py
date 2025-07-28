@@ -1,47 +1,63 @@
-import pandas as pd
+import pytest
 from unittest.mock import MagicMock
 from execution.signal_entry import on_signal
 
 def test_on_signal_entry_trigger(monkeypatch):
+    """Test entry signal dengan kondisi long"""
+    # Setup
     symbol = "BTCUSDT"
-    test_row = pd.Series({
-        "close": 100,
+    test_row = {
+        "close": 100.0,
         "long_signal": True,
         "short_signal": False
-    })
+    }
 
     strategy_params = {
         symbol: {
             "trailing_offset": 0.25,
-            "trigger_threshold": 0.5
+            "trigger_threshold": 0.5,
+            "sl": 0.95,  # Tambahkan stop loss
+            "tp": 1.05   # Tambahkan take profit
         }
     }
 
     # Mock dependencies
-    monkeypatch.setattr("execution.signal_entry.load_symbol_filters", lambda *a, **kw: {})
-    monkeypatch.setattr("execution.signal_entry.shared_price", {symbol: 100})
-    monkeypatch.setattr("execution.signal_entry.load_state", lambda: [])
+    mock_filters = {
+        "BTCUSDT": {
+            "minQty": 0.001,
+            "stepSize": 0.001,
+            "minNotional": 5.0
+        }
+    }
+    
+    mock_positions = []
+    mock_create_order = MagicMock(return_value={"orderId": "123"})
+    
+    # Mock semua kondisi untuk memastikan order ter-trigger
+    monkeypatch.setattr("execution.signal_entry.load_symbol_filters", lambda *a, **kw: mock_filters)
+    monkeypatch.setattr("execution.signal_entry.get_price", lambda s: 100.0)
+    monkeypatch.setattr("execution.signal_entry.safe_futures_create_order", mock_create_order)
     monkeypatch.setattr("execution.signal_entry.save_state", MagicMock())
-    monkeypatch.setattr("execution.signal_entry.update_open_positions", MagicMock())
-    monkeypatch.setattr("execution.signal_entry.calculate_order_qty", lambda *a, **kw: 0.1)
-    monkeypatch.setattr("execution.signal_entry.adjust_quantity_to_min", lambda *a, **kw: 0.1)
-    monkeypatch.setattr("execution.signal_entry.verify_price_before_order", lambda *a, **kw: True)
-    monkeypatch.setattr("execution.signal_entry.safe_futures_create_order", lambda *a, **kw: {"orderId": "123456"})
     monkeypatch.setattr("execution.signal_entry.kirim_notifikasi_entry", MagicMock())
-    monkeypatch.setattr("execution.signal_entry.kirim_notifikasi_telegram", MagicMock())
+    monkeypatch.setattr("execution.signal_entry.can_open_new_position", lambda *a, **kw: True)
+    monkeypatch.setattr("execution.signal_entry.is_position_open", lambda *a, **kw: False)
+    monkeypatch.setattr("execution.signal_entry.is_liquidation_risk", lambda *a, **kw: False)
+    monkeypatch.setattr("execution.signal_entry.verify_price_before_order", lambda *a, **kw: True)
+    monkeypatch.setattr("execution.signal_entry.update_open_positions", lambda *a, **kw: mock_positions)
 
-    client = MagicMock()
+    # Exercise
     on_signal(
         symbol=symbol,
         row=test_row,
-        client=client,
+        client=MagicMock(),
         strategy_params=strategy_params,
-        capital=1000.0,
-        leverage=20,
-        risk_pct=0.02,
-        max_pos=4,
-        max_sym=2,
-        max_slip=0.5,
-        notif_entry=True,
-        notif_error=True
+        capital=10000,  # Pastikan cukup untuk min notional
+        leverage=10,
+        risk_pct=1.0,   # Risk percentage yang cukup
+        max_pos=5,
+        max_sym=3,
+        max_slip=0.5
     )
+
+    # Verify
+    mock_create_order.assert_called_once()

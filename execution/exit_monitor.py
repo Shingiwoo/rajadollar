@@ -1,10 +1,10 @@
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 from execution.order_router import safe_close_order_market
-from execution.ws_listener import shared_price
+from execution.ws_listener import get_price
 from risk_management.position_manager import apply_trailing_sl, check_exit_condition
 from utils.state_manager import load_state, save_state
 from notifications.notifier import kirim_notifikasi_exit
@@ -19,7 +19,7 @@ def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit:
     for trade_data in active:
         symbol = trade_data["symbol"]
         side = trade_data["side"]
-        price = shared_price.get(symbol)
+        price = get_price(symbol)
         if price is None:
             updated.append(trade_data)
             continue
@@ -44,7 +44,7 @@ def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit:
             exit_price = price
             trade = Trade(**trade_data)
             trade.exit_price = exit_price
-            trade.exit_time = datetime.utcnow().isoformat()
+            trade.exit_time = datetime.now(timezone.utc).isoformat()
             trade.pnl = (
                 (exit_price - trade.entry_price) * trade.size
                 if side == "long"
