@@ -16,7 +16,12 @@ from execution.order_router import (
 )
 from execution.slippage_handler import verify_price_before_order
 from utils.safe_api import safe_api_call_with_retry
-from notifications.notifier import kirim_notifikasi_entry, kirim_notifikasi_telegram
+from notifications.notifier import (
+    kirim_notifikasi_entry,
+    kirim_notifikasi_telegram,
+    laporkan_error,
+    catat_error,
+)
 from utils.data_provider import load_symbol_filters
 from execution.ws_listener import shared_price
 
@@ -70,6 +75,9 @@ def on_signal(
                     kirim_notifikasi_entry(symbol, price, sl, tp, qty, oid)
 
     except Exception as e:
+        pesan = f"[WebSocket Entry] {symbol} error: {e}"
         if notif_error:
-            kirim_notifikasi_telegram(f"⚠ [WebSocket Entry] {symbol} error: {e}")
+            laporkan_error(pesan)
+        else:
+            catat_error(pesan)
         logging.exception(f"on_signal error for {symbol}: {e}")
