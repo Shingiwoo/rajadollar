@@ -3,7 +3,8 @@ import os, json, timeit
 from binance.client import Client
 from execution.ws_listener import start_price_stream
 from execution.ws_signal_listener import start_signal_stream, register_signal_handler
-from execution.monitor_exit_worker import start_exit_monitor
+from execution.exit_monitor import start_exit_monitor
+from utils.data_provider import load_symbol_filters
 from utils.logger import setup_logger
 from execution.signal_entry import on_signal
 from utils.resume_helper import handle_resume
@@ -89,7 +90,8 @@ active_positions = handle_resume(resume_flag, notif_resume)
 if resume_flag and active_positions:
     st.sidebar.success(f"Resume {len(active_positions)} posisi aktif")
 start_signal_stream(api_key, api_secret, client, multi_symbols, strategy_params)
-start_exit_monitor(client)
+symbol_steps = load_symbol_filters(client, multi_symbols)
+start_exit_monitor(client, symbol_steps, notif_exit=notif_exit)
 
 # --- WebSocket Signal Handler ---
 
