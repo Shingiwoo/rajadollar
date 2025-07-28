@@ -62,7 +62,15 @@ def on_signal(
         
         # Perbaikan di sini: gunakan get_price() bukan shared_price
         current_price = get_price(symbol)
-        price = current_price if current_price is not None else row['close']
+        price = current_price if current_price is not None else row.get('close')
+
+        if price is None or not isinstance(price, (int, float)):
+            pesan = f"Harga invalid untuk {symbol}, skip order"
+            if notif_error:
+                laporkan_error(pesan)
+            else:
+                catat_error(pesan)
+            return
 
         for side in ['long', 'short']:
             signal_flag = row.get('long_signal' if side == 'long' else 'short_signal', False)

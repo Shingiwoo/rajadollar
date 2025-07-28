@@ -61,3 +61,32 @@ def test_on_signal_entry_trigger(monkeypatch):
 
     # Verify
     mock_create_order.assert_called_once()
+
+
+def test_on_signal_invalid_price(monkeypatch):
+    symbol = "BTCUSDT"
+    test_row = {"close": None, "long_signal": True, "short_signal": False}
+    monkeypatch.setattr("execution.signal_entry.load_symbol_filters", lambda *a, **kw: {})
+    monkeypatch.setattr("execution.signal_entry.get_price", lambda s: None)
+    called = {}
+    monkeypatch.setattr("execution.signal_entry.laporkan_error", lambda msg: called.setdefault("msg", msg))
+    monkeypatch.setattr("execution.signal_entry.catat_error", lambda msg: called.setdefault("msg", msg))
+    mock_safe = MagicMock()
+    monkeypatch.setattr("execution.signal_entry.safe_futures_create_order", mock_safe)
+
+    on_signal(
+        symbol=symbol,
+        row=test_row,
+        client=MagicMock(),
+        strategy_params={},
+        capital=1000,
+        leverage=10,
+        risk_pct=1.0,
+        max_pos=1,
+        max_sym=1,
+        max_slip=0.5,
+        notif_error=True,
+    )
+
+    assert "invalid" in called.get("msg", "")
+    mock_safe.assert_not_called()

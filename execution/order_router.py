@@ -43,7 +43,10 @@ def safe_futures_create_order(client, symbol, side, type, quantity, symbol_steps
         params["timeInForce"] = timeInForce
     if closePosition is not None:
         params["closePosition"] = closePosition
-    return safe_api_call_with_retry(client.futures_create_order, **params)
+    order = safe_api_call_with_retry(client.futures_create_order, **params)
+    if order is None:
+        laporkan_error(f"Order gagal untuk {symbol}")
+    return order
 
 def wait_until_filled(
     client: Any,
@@ -168,6 +171,9 @@ def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippag
             type='MARKET',
             quantity=qty_adj
         )
+        if order is None:
+            laporkan_error(f"Gagal close market order {symbol}: API gagal")
+            return None
         return order
     except Exception as e:
         laporkan_error(f"Gagal close market order {symbol}: {e}")

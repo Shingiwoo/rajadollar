@@ -94,5 +94,22 @@ def test_wait_until_filled_retry_logic():
     assert mock_client.futures_get_order.call_count == 3
     assert duration < timedelta(seconds=1.5)  # Adjust threshold
 
+
+def test_safe_futures_create_order_error(monkeypatch):
+    from execution import order_router as orouter
+    called = {}
+    monkeypatch.setattr(orouter, "safe_api_call_with_retry", lambda *a, **kw: None)
+    monkeypatch.setattr(orouter, "laporkan_error", lambda msg: called.setdefault("msg", msg))
+    result = orouter.safe_futures_create_order(
+        MagicMock(),
+        "BTCUSDT",
+        "BUY",
+        "MARKET",
+        0.1,
+        {"BTCUSDT": {"step": 0.001, "tick": 0.01}},
+    )
+    assert result is None
+    assert "Order gagal" in called.get("msg", "")
+
 if __name__ == "__main__":
     pytest.main(["-v", "--tb=short"])
