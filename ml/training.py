@@ -32,6 +32,10 @@ def train_model():
     msg = f"✅ *ML Training Selesai*\n• Akurasi: `{acc:.2%}`\n• Data: `{len(X)}` baris\n• Jam: `{now}`"
     kirim_notifikasi_ml_training(msg)
 
+    os.makedirs("models", exist_ok=True)
+    with open("models/model_scalping.pkl", "wb") as f:
+        pickle.dump(model, f)
+
     # Simpan log
     os.makedirs("logs", exist_ok=True)
     log_path = f"logs/ml_training_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"

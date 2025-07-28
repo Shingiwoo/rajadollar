@@ -1,5 +1,6 @@
 import threading
 import time
+import logging
 from datetime import datetime, timezone
 from typing import Dict
 
@@ -7,7 +8,7 @@ from execution.order_router import safe_close_order_market
 from execution.ws_listener import get_price
 from risk_management.position_manager import apply_trailing_sl, check_exit_condition
 from utils.state_manager import load_state, save_state
-from notifications.notifier import kirim_notifikasi_exit, kirim_notifikasi_telegram
+from utils.notifikasi import kirim_notifikasi_exit, kirim_notifikasi_telegram
 from database.sqlite_logger import log_trade, get_all_trades
 from models.trade import Trade
 from risk_management.circuit_breaker import CircuitBreaker
@@ -25,14 +26,19 @@ def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit:
             updated.append(trade_data)
             continue
 
-        trade_data["trailing_sl"] = apply_trailing_sl(
-            price,
-            trade_data["entry_price"],
-            side,
-            trade_data.get("trailing_sl", trade_data["sl"]),
-            trade_data.get("trigger_threshold") or 0.5,
-            trade_data.get("trailing_offset") or 0.25,
-        )
+        if trade_data.get("trailing_enabled", True):
+            trade_data["trailing_sl"] = apply_trailing_sl(
+                price,
+                trade_data["entry_price"],
+                side,
+                trade_data.get("trailing_sl", trade_data["sl"]),
+                trade_data.get("trailing_trigger_pct")
+                or trade_data.get("trigger_threshold")
+                or 0.5,
+                trade_data.get("trailing_offset_pct")
+                or trade_data.get("trailing_offset")
+                or 0.25,
+            )
 
         if check_exit_condition(price, trade_data["trailing_sl"], trade_data["tp"], 0, direction=side):
             order = safe_close_order_market(
@@ -52,6 +58,9 @@ def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit:
                 else (trade.entry_price - exit_price) * trade.size
             )
             log_trade(trade)
+            logging.info(
+                f"Auto close {symbol} {side} @ {exit_price} PnL {trade.pnl:.2f}"
+            )
             if notif_exit:
                 kirim_notifikasi_exit(symbol, exit_price, trade.pnl, trade.order_id)
         else:
@@ -68,11 +77,32 @@ def start_exit_monitor(client, symbol_steps: Dict[str, Dict], interval: float = 
 
     def loop():
         while not stop_event.is_set():
-            check_and_close_positions(client, symbol_steps, notif_exit)
-            if circuit.check(client, symbol_steps, stop_event):
-                break
+            try:
+                check_and_close_positions(client, symbol_steps, notif_exit)
+                if circuit.check(client, symbol_steps, stop_event):
+                    break
+            except Exception as e:
+                logging.error(f"Exit monitor error: {e}", exc_info=True)
             time.sleep(interval)
 
     thread = threading.Thread(target=loop, daemon=True)
-    thread.start()
+    try:
+        thread.start()
+    except Exception as e:
+        logging.error(f"Gagal memulai exit monitor: {e}")
+        return stop_event, None
+
+    if not thread.is_alive():
+        logging.error("Exit monitor thread tidak berjalan saat startup")
+
+    def watcher():
+        nonlocal thread
+        while not stop_event.is_set():
+            if not thread.is_alive():
+                logging.error("Thread exit monitor mati, restart...")
+                thread = threading.Thread(target=loop, daemon=True)
+                thread.start()
+            time.sleep(5)
+
+    threading.Thread(target=watcher, daemon=True).start()
     return stop_event, thread
