@@ -1,16 +1,15 @@
-FROM python:3.13-alpine
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies first to leverage Docker cache
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt && \
-    rm -rf /root/.cache/pip
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
-COPY . .
+RUN adduser --disabled-password --gecos "" botuser
+USER botuser
 
-EXPOSE 8501
+COPY --chown=botuser:botuser . .
 
-CMD ["streamlit", "run", "main.py"]
+EXPOSE 8588
+
+CMD ["streamlit", "run", "main.py", "--server.port=8588", "--server.headless=true"]

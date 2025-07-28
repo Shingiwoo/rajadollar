@@ -76,70 +76,55 @@ rajadollar/
 
 ---
 
-## 🖥️ **Deployment ke VPS Ubuntu (Dockerized)**
+## 🛠️ Deployment & Setup
 
-1. **Build Docker image:**
-    ```sh
-    docker build -t rajadollar .
-    ```
+### Build Docker
+```bash
+docker build -t rajadollar:latest .
+```
 
-2. **Run container:**
-    ```sh
-    docker run -d --env-file .env -p 8501:8501 rajadollar
-    ```
+### Jalankan Container
+```bash
+docker run -d --name rajadollar_bot \
+  --env-file .env \
+  --cpus="2" --memory="2g" \
+  -p 8588:8588 \
+  -v $PWD/rajadollar_state:/app/runtime_state \
+  rajadollar:latest
+```
+Keterangan:
+- `--env-file .env` memuat API key dan token Telegram.
+- `--cpus` dan `--memory` membatasi resource container.
+- `-p 8588:8588` membuka port Streamlit.
+- `-v` membuat direktori `runtime_state` persisten agar aman saat restart.
 
-3. **Akses bot di browser:**
-    ```
-    http://<IP_VPS>:8501
-    ```
+### Reverse Proxy Nginx
+1. Install nginx: `sudo apt install nginx`
+2. Salin `docs/nginx_rajadollar.conf` ke `/etc/nginx/sites-available/rajadollar.conf`
+3. Aktifkan: `sudo ln -s /etc/nginx/sites-available/rajadollar.conf /etc/nginx/sites-enabled/`
+4. Cek dan reload: `sudo nginx -t && sudo systemctl reload nginx`
 
----
+### Format `.env`
+```
+TELEGRAM_TOKEN=xxx
+TELEGRAM_CHAT_ID=xxx
+testnet_api_key=xxx
+testnet_secret=xxx
+real_api_key=xxx
+real_api_secret=xxx
+```
 
-## 🌐 **Nginx (Reverse Proxy, Optional)**
+Strategi dikonfigurasi lewat `config/strategy_params.json`. Model ML akan dilatih otomatis, bisa juga manual dengan `python ml/training.py` atau via Telegram (`/ml`, `/mltrain`).
 
-1. **Install nginx:**
-    ```sh
-    sudo apt install nginx
-    ```
-
-2. **Konfigurasi file `/etc/nginx/sites-available/rajadollar`:**
-    ```
-    server {
-        listen 80;
-        server_name <domain_kamu>;
-
-        location / {
-            proxy_pass http://localhost:8501;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-    }
-    ```
-
-3. **Aktifkan config:**
-    ```sh
-    sudo ln -s /etc/nginx/sites-available/rajadollar /etc/nginx/sites-enabled/
-    sudo nginx -t
-    sudo systemctl restart nginx
-    ```
+### FAQ
+- **Apakah aman restart?** Ya, data di `runtime_state` dipulihkan otomatis.
+- **Bagaimana menghindari rate limit?** Semua panggilan Binance melalui `utils/safe_api.py`.
+- **Debugging?** Gunakan perintah `/status`, `/log`, atau cek file log di `logs/`.
 
 ---
 
-## 🛠️ **Production Checklist**
-- [x] Semua variabel `.env` sudah valid
-- [x] Port firewall VPS sudah dibuka (`8501`)
-- [x] Bot sudah `/start` di Telegram user
-- [x] Running di testnet dulu, baru real!
-- [x] Uji semua fitur dengan unit test
-- [x] Amankan credential API & hapus debug print di deploy
-- [x] Tambahkan HTTPS (Let's Encrypt) jika expose ke public
-
----
-
-## 👨‍💻 **Pengembang & Dukungan**
-Bot ini didukung dan didokumentasikan oleh [Shingiwoo].  
+## 👨‍💻 Pengembang & Dukungan
+Bot ini didukung dan didokumentasikan oleh [Shingiwoo].
 Support/kontribusi open di [shingiwoo.ind@gmail.com].
 
 ---
