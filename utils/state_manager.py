@@ -19,6 +19,8 @@ def save_state(data: List[Dict[str, Any]]) -> None:
         data: Data state yang akan disimpan (list of dicts)
     """
     os.makedirs(STATE_DIR, exist_ok=True)
+    if not (os.stat(STATE_DIR).st_mode & 0o200):
+        raise RuntimeError("State directory tidak bisa ditulis")
     tmp_path = None
     
     try:
