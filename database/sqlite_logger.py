@@ -29,3 +29,25 @@ def log_trade(trade: Trade):
 def get_all_trades():
     with sqlite3.connect(DB_PATH) as conn:
         return pd.read_sql_query("SELECT * FROM trades ORDER BY entry_time DESC", conn)
+
+def get_trades_filtered(symbol: str | None = None, start: str | None = None, end: str | None = None) -> pd.DataFrame:
+    """Ambil histori trade dengan filter optional."""
+    df = get_all_trades()
+    if df.empty:
+        return df
+    if symbol:
+        df = df[df['symbol'] == symbol.upper()]
+    if start:
+        df = df[pd.to_datetime(df['entry_time']) >= pd.to_datetime(start)]
+    if end:
+        df = df[pd.to_datetime(df['entry_time']) <= pd.to_datetime(end)]
+    return df
+
+def export_trades_csv(path: str) -> str:
+    """Export seluruh histori trade ke CSV dan kembalikan path."""
+    df = get_all_trades()
+    if df.empty:
+        df.to_csv(path, index=False)
+    else:
+        df.to_csv(path, index=False)
+    return path
