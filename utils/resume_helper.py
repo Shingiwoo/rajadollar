@@ -1,4 +1,4 @@
-from typing import List, Dict, Set, Tuple
+from typing import List, Dict, Set, Tuple, Optional
 from datetime import datetime
 from utils.state_manager import load_state, save_state
 from utils.safe_api import safe_api_call_with_retry
@@ -25,6 +25,9 @@ def sync_with_binance(client) -> List[Dict]:
         remote_positions = safe_api_call_with_retry(
             client.futures_position_information
         )
+        if remote_positions is None:
+            kirim_notifikasi_telegram("🔴 Sync failed: No data from Binance API")
+            return load_state()
     except Exception as e:
         kirim_notifikasi_telegram(f"🔴 Sync failed: {str(e)}")
         print(f"[SYNC ERROR] {str(e)}")
@@ -38,6 +41,9 @@ def sync_with_binance(client) -> List[Dict]:
     }
 
     local_state = load_state()
+    if local_state is None:
+        local_state = []
+
     local_set = {(t["symbol"], t["side"]) for t in local_state}    
 
     # Case 1: Positions match
@@ -77,6 +83,3 @@ def sync_with_binance(client) -> List[Dict]:
             ", ".join(f"{s} {side}" for s, side in extra)
         )
     return local_state
-
-    
-    
