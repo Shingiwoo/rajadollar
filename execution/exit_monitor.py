@@ -10,6 +10,7 @@ from utils.state_manager import load_state, save_state
 from notifications.notifier import kirim_notifikasi_exit, kirim_notifikasi_telegram
 from database.sqlite_logger import log_trade, get_all_trades
 from models.trade import Trade
+from risk_management.circuit_breaker import CircuitBreaker
 
 
 def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit: bool = True):
@@ -61,12 +62,15 @@ def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit:
     return updated
 
 
-def start_exit_monitor(client, symbol_steps: Dict[str, Dict], interval: float = 1.0, notif_exit: bool = True):
+def start_exit_monitor(client, symbol_steps: Dict[str, Dict], interval: float = 1.0, notif_exit: bool = True, loss_limit: float = -50.0):
     stop_event = threading.Event()
+    circuit = CircuitBreaker(loss_limit=loss_limit)
 
     def loop():
         while not stop_event.is_set():
             check_and_close_positions(client, symbol_steps, notif_exit)
+            if circuit.check(client, symbol_steps, stop_event):
+                break
             time.sleep(interval)
 
     thread = threading.Thread(target=loop, daemon=True)

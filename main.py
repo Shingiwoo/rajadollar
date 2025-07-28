@@ -77,6 +77,7 @@ risk_pct = st.sidebar.number_input("Risk per Trade (%)", 0.01, 1.0, 0.02)
 max_pos = st.sidebar.slider("Max Posisi", 1, 8, 4)
 max_sym = st.sidebar.slider("Max Symbols Concurrent", 1, 4, 2)
 max_slip = st.sidebar.number_input("Max Slippage (%)", 0.1, 1.0, 0.5)
+loss_limit = st.sidebar.number_input("Batas Loss Harian (USDT)", -1000.0, 0.0, -50.0, step=10.0)
 resume_flag = st.sidebar.checkbox("Resume Otomatis", True)
 notif_entry = st.sidebar.checkbox("Notifikasi Entry", True)
 notif_exit = st.sidebar.checkbox("Notifikasi Exit", True)
@@ -93,7 +94,7 @@ if resume_flag and active_positions:
     st.sidebar.success(f"Resume {len(active_positions)} posisi aktif")
 start_signal_stream(api_key, api_secret, client, multi_symbols, strategy_params)
 symbol_steps = load_symbol_filters(client, multi_symbols)
-start_exit_monitor(client, symbol_steps, notif_exit=notif_exit)
+start_exit_monitor(client, symbol_steps, notif_exit=notif_exit, loss_limit=loss_limit)
 
 # --- WebSocket Signal Handler ---
 
