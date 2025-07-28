@@ -4,7 +4,7 @@ import strategies.scalping_strategy as strat
 
 class DummyModel:
     def predict(self, X):
-        return [1] * len(X)
+        return [0] * len(X)
 
 def test_ml_prediction(tmp_path, monkeypatch):
     model_path = tmp_path / 'model.pkl'
@@ -28,5 +28,5 @@ def test_ml_prediction(tmp_path, monkeypatch):
     df = strat.apply_indicators(df, config)
     df = strat.generate_signals(df, 1.0)
     assert 'ml_signal' in df.columns
-    assert df['ml_signal'].iloc[-1] == 1
-    assert 'long_signal' in df.columns
+    assert df['ml_signal'].iloc[-1] == 0
+    assert 'short_signal' in df.columns

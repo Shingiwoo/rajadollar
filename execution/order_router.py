@@ -146,13 +146,12 @@ def get_current_mark_price(client, symbol):
         return None
     return float(ticker['markPrice'])
 
-def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippage=0.005):
-    """Order market close di harga MARK PRICE, aman dari error -4131."""
+def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippage=0.005, retries=3):
+    """Order market close di harga MARK PRICE dengan retry."""
     mark_price = get_current_mark_price(client, symbol)
     if mark_price is None:
         laporkan_error(f"Tidak bisa ambil mark price, skip close {symbol}.")
         return None
-    # Cek slippage (optional)
     ticker = safe_api_call_with_retry(client.futures_symbol_ticker, symbol=symbol)
     if not ticker:
         laporkan_error(f"Tidak bisa ambil harga pasar {symbol}")
@@ -161,20 +160,28 @@ def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippag
     diff = abs(mark_price - current_price) / current_price
     if diff > max_slippage:
         print(f"[WARNING] Mark price {mark_price} terlalu jauh dari harga pasar {current_price}, slippage {diff*100:.2f}%")
-    # Patch: Eksekusi order market di harga mark_price (pakai quantity valid)
-    try:
-        qty_adj = adjust_to_step(qty, symbol_steps[symbol]['step'])
-        order = safe_api_call_with_retry(
-            client.futures_create_order,
-            symbol=symbol,
-            side=side,
-            type='MARKET',
-            quantity=qty_adj
-        )
-        if order is None:
-            laporkan_error(f"Gagal close market order {symbol}: API gagal")
+
+    qty_adj = adjust_to_step(qty, symbol_steps[symbol]['step'])
+    for attempt in range(retries):
+        try:
+            order = safe_api_call_with_retry(
+                client.futures_create_order,
+                symbol=symbol,
+                side=side,
+                type='MARKET',
+                quantity=qty_adj
+            )
+            if order:
+                return order
+        except ClientError as e:
+            if "2021" in str(e) or "2019" in str(e):
+                print(f"[BinanceError] {e}, retry {attempt+1}/{retries}")
+                time.sleep(1)
+                continue
+            laporkan_error(f"Gagal close market order {symbol}: {e}")
             return None
-        return order
-    except Exception as e:
-        laporkan_error(f"Gagal close market order {symbol}: {e}")
-        return None
+        except Exception as e:
+            laporkan_error(f"Gagal close market order {symbol}: {e}")
+            return None
+    laporkan_error(f"Gagal close market order {symbol} setelah {retries} percobaan")
+    return None

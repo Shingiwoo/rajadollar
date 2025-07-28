@@ -7,8 +7,9 @@
     "macd_slow": 26,
     "macd_signal": 9,
     "score_threshold": 1.7,
-    "trailing_offset": 0.26,
-    "trigger_threshold": 0.6
+    "trailing_enabled": true,
+    "trailing_offset_pct": 0.26,
+    "trailing_trigger_pct": 0.6
   },
   "XRPUSDT": {
     "ema_period": 15,
@@ -18,8 +19,9 @@
     "macd_slow": 26,
     "macd_signal": 9,
     "score_threshold": 1.4,
-    "trailing_offset": 0.25,
-    "trigger_threshold": 0.5
+    "trailing_enabled": true,
+    "trailing_offset_pct": 0.25,
+    "trailing_trigger_pct": 0.5
   },
   "TURBOUSDT": {
     "ema_period": 24,
@@ -29,7 +31,8 @@
     "macd_slow": 26,
     "macd_signal": 9,
     "score_threshold": 2.1,
-    "trailing_offset": 0.25,
-    "trigger_threshold": 0.5
+    "trailing_enabled": true,
+    "trailing_offset_pct": 0.25,
+    "trailing_trigger_pct": 0.5
   }
 }

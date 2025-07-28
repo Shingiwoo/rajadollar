@@ -4,6 +4,7 @@ from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands, AverageTrueRange
 import pickle
 import os
+import logging
 
 MODEL_PATH = "models/model_scalping.pkl"
 _ml_model = None
@@ -14,9 +15,13 @@ def load_ml_model(path: str | None = None):
     if path:
         MODEL_PATH = path
         _ml_model = None
-    if _ml_model is None and os.path.exists(MODEL_PATH):
-        with open(MODEL_PATH, "rb") as f:
-            _ml_model = pickle.load(f)
+    if _ml_model is None:
+        if os.path.exists(MODEL_PATH):
+            with open(MODEL_PATH, "rb") as f:
+                _ml_model = pickle.load(f)
+            logging.info("ML model loaded successfully.")
+        else:
+            logging.warning("ML model not found. Defaulting ml_signal = 1")
     return _ml_model
 
 load_ml_model()
@@ -28,10 +33,15 @@ def generate_ml_signal(df):
         df.loc[df.index[-1], 'ml_signal'] = 1
         return df
     features = df[['ema', 'sma', 'macd', 'rsi']].ffill().iloc[-1:]
-    try:
-        pred = int(model.predict(features)[0])
-    except Exception:
+    if features.isnull().values.any():
+        logging.warning("Fitur ML mengandung NaN, default ml_signal = 1")
         pred = 1
+    else:
+        try:
+            pred = int(model.predict(features)[0])
+        except Exception as e:
+            logging.error(f"Prediksi ML gagal: {e}")
+            pred = 1
     df.loc[df.index[-1], 'ml_signal'] = pred
     return df
 

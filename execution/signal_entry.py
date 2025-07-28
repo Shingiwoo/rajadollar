@@ -105,8 +105,9 @@ def on_signal(
                 now = datetime.now(UTC).isoformat()
                 sl = price * (0.99 if side == 'long' else 1.01)
                 tp = price * (1.02 if side == 'long' else 0.98)
-                tr_off = params.get("trailing_offset", 0.25)
-                trg_thr = params.get("trigger_threshold", 0.5)
+                trailing_enabled = params.get("trailing_enabled", True)
+                tr_off = params.get("trailing_offset_pct", 0.25)
+                trg_thr = params.get("trailing_trigger_pct", 0.5)
 
                 trade = Trade(
                     symbol=symbol,
@@ -119,7 +120,8 @@ def on_signal(
                     trailing_sl=sl,
                     order_id=oid,
                     trailing_offset=tr_off,
-                    trigger_threshold=trg_thr
+                    trigger_threshold=trg_thr,
+                    trailing_enabled=trailing_enabled
                 )
                 
                 active.append(trade.to_dict())

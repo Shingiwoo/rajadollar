@@ -14,10 +14,11 @@ def test_on_signal_entry_trigger(monkeypatch):
 
     strategy_params = {
         symbol: {
-            "trailing_offset": 0.25,
-            "trigger_threshold": 0.5,
-            "sl": 0.95,  # Tambahkan stop loss
-            "tp": 1.05   # Tambahkan take profit
+            "trailing_enabled": True,
+            "trailing_offset_pct": 0.25,
+            "trailing_trigger_pct": 0.5,
+            "sl": 0.95,
+            "tp": 1.05
         }
     }
 
