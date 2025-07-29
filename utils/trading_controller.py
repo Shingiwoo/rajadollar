@@ -1,5 +1,6 @@
 from functools import partial
 from typing import Dict, Any
+import streamlit as st
 
 from execution.ws_listener import (
     start_price_stream,
@@ -27,18 +28,19 @@ def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
         if cfg.get("auto_sync")
         else cfg.get("capital", 1000.0)
     )
-    if cfg.get("auto_sync") and (not bot_flags.IS_READY or balance == 0):
-        return handles
+    if balance == 0.0 or not bot_flags.IS_READY:
+        st.error("❌ Balance invalid, bot not started")
+        return {}
     if not is_price_stream_running():
         handles["price_ws"] = start_price_stream(
-            cfg["api_key"], cfg["api_secret"], cfg["symbols"]
+            cfg["client"], cfg["symbols"]
         )
     else:
         handles["price_ws"] = None
 
     if not is_signal_stream_running():
         start_signal_stream(
-            cfg["api_key"], cfg["api_secret"], cfg["client"], cfg["symbols"], cfg["strategy_params"]
+            cfg["client"], cfg["symbols"], cfg["strategy_params"]
         )
     symbol_steps = load_symbol_filters(cfg["client"], cfg["symbols"])
     ev, th = start_exit_monitor(

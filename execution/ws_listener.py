@@ -36,22 +36,21 @@ def clear_prices() -> None:
     with price_lock:
         price_data.clear()
 
-def start_price_stream(api_key: str, api_secret: str, symbols: list) -> BinanceSocketManager:
+def start_price_stream(client, symbols: list) -> BinanceSocketManager:
     """Mulai WebSocket stream untuk update harga real-time.
-    
+
     Args:
-        api_key: Binance API key
-        api_secret: Binance API secret
+        client: Instance Client
         symbols: List pair trading yang akan dimonitor
-    
+
     Returns:
-        Instance ThreadedWebsocketManager yang sedang berjalan
+        Instance BinanceSocketManager yang sedang berjalan
     """
     global _bsm, _tasks
     if _tasks:
         return _bsm
 
-    _bsm = BinanceSocketManager(api_key=api_key, api_secret=api_secret)
+    _bsm = BinanceSocketManager(client=client)
 
     async def socket_runner(socket):
         async with socket as s:

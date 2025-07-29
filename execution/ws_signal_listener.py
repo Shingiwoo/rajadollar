@@ -13,14 +13,15 @@ _tasks: dict[str, asyncio.Task] = {}
 def register_signal_handler(symbol: str, callback):
     signal_callbacks[symbol.upper()] = callback
 
-def start_signal_stream(api_key, api_secret, client, symbols: list[str], strategy_params):
+def start_signal_stream(client, symbols: list[str], strategy_params):
+    """Mulai stream sinyal berdasarkan kline."""
     global ws_manager, client_global, _tasks
     if not bot_flags.IS_READY or _tasks:
         if not bot_flags.IS_READY:
             print("Bot belum siap, signal stream tidak dimulai")
         return
     client_global = client
-    ws_manager = BinanceSocketManager(api_key=api_key, api_secret=api_secret)
+    ws_manager = BinanceSocketManager(client=client)
 
     async def socket_runner(socket):
         async with socket as s:
