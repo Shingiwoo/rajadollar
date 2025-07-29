@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir \
 
 RUN adduser --disabled-password --gecos "" botuser && \
     mkdir -p /app/logs && chown -R botuser /app/logs
+    mkdir -p /app/runtime_state && chown -R botuser /app/runtime_state
 USER botuser
 
 EXPOSE 8588
