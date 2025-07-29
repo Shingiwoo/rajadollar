@@ -2,6 +2,7 @@ import pandas as pd
 import streamlit as st
 from utils.safe_api import safe_api_call_with_retry
 from utils.bot_flags import set_ready
+from utils.notifikasi import kirim_notifikasi_telegram
 
 def fetch_latest_data(symbol, client, interval='5m', limit=100):
     klines = safe_api_call_with_retry(
@@ -36,18 +37,23 @@ def load_symbol_filters(client, coins):
 
 def get_futures_balance(client):
     try:
-        account_info = safe_api_call_with_retry(client.futures_account)
-        if not account_info:
+        response = safe_api_call_with_retry(client.futures_account)
+        if isinstance(response, str) and "<html" in response.lower():
+            raise ValueError("Binance returned HTML, likely due to invalid base URL")
+        if not response:
             st.warning("❌ Gagal sync saldo Binance")
+            kirim_notifikasi_telegram("❌ Gagal sync saldo Binance")
             set_ready(False)
             return 0.0
 
         set_ready(True)
-        usdt_asset = next((a for a in account_info['assets'] if a['asset'] == 'USDT'), None)
-        return float(usdt_asset['balance']) if usdt_asset else 0.0
+        assets = response.get('assets', [])
+        usdt = next((a for a in assets if a['asset'] == 'USDT'), None)
+        return float(usdt['balance']) if usdt else 0.0
 
     except Exception as e:
-        st.error(f"Gagal mengambil saldo: {e}")
+        st.error(f"Gagal mengambil saldo Binance Futures: {e}")
+        kirim_notifikasi_telegram(f"🔴 Gagal sync saldo: {e}")
         set_ready(False)
         return 0.0
 

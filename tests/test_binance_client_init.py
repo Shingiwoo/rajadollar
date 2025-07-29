@@ -17,7 +17,10 @@ def test_create_client_testnet():
     with patch.dict("utils.binance_helper.BINANCE_KEYS", {
         "testnet": {"API_KEY": "a", "API_SECRET": "b"},
         "real": {"API_KEY": "c", "API_SECRET": "d"},
-    }), patch("utils.binance_helper.Client", return_value=MagicMock(testnet=True, API_URL="https://testnet", API_KEY="a", API_SECRET="b")):
+    }), patch(
+        "utils.binance_helper.Client",
+        return_value=MagicMock(testnet=True, API_URL="https://testnet.binancefuture.com", API_KEY="a", API_SECRET="b")
+    ):
         client = create_client("testnet")
         assert client.testnet is True
         assert client.API_KEY == "a"
@@ -28,7 +31,10 @@ def test_create_client_real():
     with patch.dict("utils.binance_helper.BINANCE_KEYS", {
         "testnet": {"API_KEY": "a", "API_SECRET": "b"},
         "real": {"API_KEY": "c", "API_SECRET": "d"},
-    }), patch("utils.binance_helper.Client", return_value=MagicMock(testnet=False, API_URL="https://api.binance.com", API_KEY="c", API_SECRET="d")):
+    }), patch(
+        "utils.binance_helper.Client",
+        return_value=MagicMock(testnet=False, API_URL="https://fapi.binance.com", API_KEY="c", API_SECRET="d")
+    ):
         client = create_client("real")
         assert client.testnet is False
         assert client.API_KEY == "c"
