@@ -86,35 +86,29 @@ def load_symbol_filters(client, coins):
 
 def get_futures_balance(client):
     try:
-        response = safe_api_call_with_retry(client.futures_account)  # Gunakan endpoint yang lebih spesifik
+        response = safe_api_call_with_retry(client.futures_account)
         
-        # Debugging
-        print(f"Raw response: {response}")  # Tambahkan ini untuk melihat response aktual
-        
-        if not response:
-            st.warning("❌ Gagal sync saldo Binance (empty response)")
-            kirim_notifikasi_telegram("❌ Gagal sync saldo Binance: empty response")
-            set_ready(False)
-            return 0.0
+        if isinstance(response, str) and "<html" in response.lower():
+            raise ValueError("Binance returned HTML page instead of JSON")
 
-        # Handle berbagai format response
-        if isinstance(response, list):
-            # Format terbaru: [{'asset': 'USDT', 'balance': '100.00', ...}]
-            usdt_data = next((item for item in response if item.get('asset') == 'USDT'), None)
-            balance = float(usdt_data.get('balance', 0)) if usdt_data else 0.0
-        elif isinstance(response, dict):
-            # Format lama: {'assets': [{'asset': 'USDT', ...}]}
-            assets = response.get('assets', [])
-            usdt_data = next((a for a in assets if a.get('asset') == 'USDT'), None)
-            balance = float(usdt_data.get('balance', 0)) if usdt_data else 0.0
-        else:
-            raise ValueError(f"Unexpected response type: {type(response)}")
+        if not isinstance(response, dict):
+            raise ValueError("Invalid response format")
 
+        assets = response.get("assets", [])
+        if not assets:
+            raise ValueError("empty response")
+
+        usdt = next((a for a in assets if a["asset"] == "USDT"), None)
+        if usdt is None:
+            raise ValueError("USDT asset not found")
+
+        balance = float(usdt["walletBalance"])
         set_ready(True)
         return balance
 
     except Exception as e:
-        st.error(f"Gagal mengambil saldo Binance Futures: {str(e)}")
-        kirim_notifikasi_telegram(f"🔴 Gagal sync saldo: {str(e)}")
+        import traceback
+        st.error(f"Gagal sync saldo Binance: {e}")
+        kirim_notifikasi_telegram(f"❌ Gagal sync saldo Binance: {e}")
         set_ready(False)
         return 0.0
