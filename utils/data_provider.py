@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+import json
 from utils.safe_api import safe_api_call_with_retry
 from utils.bot_flags import set_ready
 from utils.notifikasi import kirim_notifikasi_telegram
@@ -38,22 +39,45 @@ def load_symbol_filters(client, coins):
 def get_futures_balance(client):
     try:
         response = safe_api_call_with_retry(client.futures_account)
-        if isinstance(response, str) and "<html" in response.lower():
-            raise ValueError("Binance returned HTML, likely due to invalid base URL")
-        if not response:
-            st.warning("❌ Gagal sync saldo Binance")
-            kirim_notifikasi_telegram("❌ Gagal sync saldo Binance")
+        
+        # Debug: Cetak tipe dan isi response
+        print(f"Response type: {type(response)}")
+        print(f"Response content: {response}")
+        
+        # Penanganan response tidak valid
+        if isinstance(response, str):
+            if "<html" in response.lower():
+                raise ValueError("Binance returned HTML, likely due to invalid base URL")
+            try:
+                # Coba parse string sebagai JSON
+                response = json.loads(response)
+            except json.JSONDecodeError:
+                raise ValueError(f"Invalid API response: {response}")
+        
+        if not response or not isinstance(response, dict):
+            st.warning("❌ Gagal sync saldo Binance (invalid response format)")
+            kirim_notifikasi_telegram("❌ Gagal sync saldo Binance: invalid response format")
             set_ready(False)
             return 0.0
 
         set_ready(True)
-        assets = response.get('assets', [])
-        usdt = next((a for a in assets if a['asset'] == 'USDT'), None)
-        return float(usdt['balance']) if usdt else 0.0
+        
+        # Struktur response yang mungkin:
+        # 1. Untuk futures_account: {'assets': [{'asset': 'USDT', 'balance': '100.00'}]}
+        # 2. Untuk futures_account_balance: [{'asset': 'USDT', 'balance': '100.00'}]
+        
+        # Cek kedua kemungkinan struktur response
+        if 'assets' in response:  # Jika response adalah futures_account
+            assets = response.get('assets', [])
+        else:  # Jika response adalah futures_account_balance
+            assets = response if isinstance(response, list) else []
+        
+        usdt = next((a for a in assets if a.get('asset') == 'USDT'), None)
+        return float(usdt.get('balance', 0)) if usdt else 0.0
 
     except Exception as e:
-        st.error(f"Gagal mengambil saldo Binance Futures: {e}")
-        kirim_notifikasi_telegram(f"🔴 Gagal sync saldo: {e}")
+        st.error(f"Gagal mengambil saldo Binance Futures: {str(e)}")
+        kirim_notifikasi_telegram(f"🔴 Gagal sync saldo: {str(e)}")
         set_ready(False)
         return 0.0
 
