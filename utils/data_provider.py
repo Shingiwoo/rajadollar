@@ -35,14 +35,20 @@ def load_symbol_filters(client, coins):
     return symbol_filters
 
 def get_futures_balance(client):
-    balance = safe_api_call_with_retry(client.futures_account())
-    if not balance:
-        st.warning("Gagal sync saldo Binance")
+    try:
+        account_info = safe_api_call_with_retry(client.futures_account)
+        if not account_info:
+            st.warning("❌ Gagal sync saldo Binance")
+            set_ready(False)
+            return 0.0
+
+        set_ready(True)
+        usdt_asset = next((a for a in account_info['assets'] if a['asset'] == 'USDT'), None)
+        return float(usdt_asset['balance']) if usdt_asset else 0.0
+
+    except Exception as e:
+        st.error(f"Gagal mengambil saldo: {e}")
         set_ready(False)
         return 0.0
-    set_ready(True)
-    for asset in balance:
-        if asset['asset'] == 'USDT':
-            return float(asset['balance'])
-    return 0.0
+
 
