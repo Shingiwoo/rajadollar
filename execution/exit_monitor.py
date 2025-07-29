@@ -1,6 +1,7 @@
 import threading
 import time
 import logging
+import streamlit as st
 from datetime import datetime, timezone
 from typing import Dict
 
@@ -76,7 +77,7 @@ def start_exit_monitor(client, symbol_steps: Dict[str, Dict], interval: float = 
     circuit = CircuitBreaker(loss_limit=loss_limit)
 
     def loop():
-        while not stop_event.is_set():
+        while not stop_event.is_set() and not st.session_state.get("stop_signal"):
             try:
                 check_and_close_positions(client, symbol_steps, notif_exit)
                 if circuit.check(client, symbol_steps, stop_event):
@@ -97,7 +98,7 @@ def start_exit_monitor(client, symbol_steps: Dict[str, Dict], interval: float = 
 
     def watcher():
         nonlocal thread
-        while not stop_event.is_set():
+        while not stop_event.is_set() and not st.session_state.get("stop_signal"):
             if not thread.is_alive():
                 logging.error("Thread exit monitor mati, restart...")
                 thread = threading.Thread(target=loop, daemon=True)

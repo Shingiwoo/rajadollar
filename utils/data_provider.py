@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 from utils.safe_api import safe_api_call_with_retry
+from utils.bot_flags import set_ready
 
 def fetch_latest_data(symbol, client, interval='5m', limit=100):
     klines = safe_api_call_with_retry(
@@ -37,7 +38,9 @@ def get_futures_balance(client):
     balance = safe_api_call_with_retry(client.futures_account_balance)
     if not balance:
         st.warning("Gagal sync saldo Binance")
+        set_ready(False)
         return 0.0
+    set_ready(True)
     for asset in balance:
         if asset['asset'] == 'USDT':
             return float(asset['balance'])

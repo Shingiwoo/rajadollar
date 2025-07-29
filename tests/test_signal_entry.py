@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from execution.signal_entry import on_signal
+from utils.bot_flags import set_ready
 
 def test_on_signal_entry_trigger(monkeypatch):
     """Test entry signal dengan kondisi long"""
@@ -34,6 +35,7 @@ def test_on_signal_entry_trigger(monkeypatch):
     mock_positions = []
     mock_create_order = MagicMock(return_value={"orderId": "123"})
     
+    set_ready(True)
     # Mock semua kondisi untuk memastikan order ter-trigger
     monkeypatch.setattr("execution.signal_entry.load_symbol_filters", lambda *a, **kw: mock_filters)
     monkeypatch.setattr("execution.signal_entry.get_price", lambda s: 100.0)
@@ -66,6 +68,7 @@ def test_on_signal_entry_trigger(monkeypatch):
 
 def test_on_signal_invalid_price(monkeypatch):
     symbol = "BTCUSDT"
+    set_ready(True)
     test_row = {"close": None, "long_signal": True, "short_signal": False}
     monkeypatch.setattr("execution.signal_entry.load_symbol_filters", lambda *a, **kw: {})
     monkeypatch.setattr("execution.signal_entry.get_price", lambda s: None)
