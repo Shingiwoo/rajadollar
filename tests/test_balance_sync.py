@@ -20,8 +20,8 @@ def test_get_balance_testnet(monkeypatch):
     monkeypatch.setattr('utils.data_provider.set_ready', lambda val: called.setdefault('ready', val))
 
     class Client:
-        def futures_account(self):
-            return {'assets': [{'asset': 'USDT', 'balance': '55.5'}]}
+        def futures_account_balance(self):  # Ubah ke futures_account_balance
+            return [{'asset': 'USDT', 'balance': '55.5'}]  # Format response baru
     balance = get_futures_balance(Client())
     assert balance == 55.5
     assert called.get('ready') is True
