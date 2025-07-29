@@ -1,5 +1,6 @@
 import os
 import datetime
+from utils.logger import LOG_DIR
 try:
     import requests
 except ModuleNotFoundError:
@@ -41,7 +42,7 @@ def kirim_notifikasi_ml_training(msg: str):
     except Exception as e:
         print(f"[ML Notify Error] {e}")
 
-ERROR_LOG_FILE = "log_error.txt"
+ERROR_LOG_FILE = os.path.join(LOG_DIR, "error.log")
 
 def catat_error(pesan: str):
     ts = datetime.datetime.now().isoformat()

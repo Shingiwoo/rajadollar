@@ -69,7 +69,7 @@ def test_mltrain_command():
              patch.object(ch, "glob") as mock_glob, \
              patch("notifications.command_handler.requests.post") as mock_post, \
              patch("builtins.open", mock_open(read_data="ok")):
-            mock_glob.glob.return_value = ["logs/ml_training_1.txt"]
+            mock_glob.glob.return_value = ["/app/logs/ml_training_1.txt"]
             bot_state = {}
             ch.handle_command("/mltrain", "chat", bot_state)
             assert mock_train.call_count == 1

@@ -21,7 +21,8 @@ RUN pip install --no-cache-dir \
     yfinance \
     ta
 
-RUN adduser --disabled-password --gecos "" botuser
+RUN adduser --disabled-password --gecos "" botuser && \
+    mkdir -p /app/logs && chown -R botuser /app/logs
 USER botuser
 
 EXPOSE 8588

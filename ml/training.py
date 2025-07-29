@@ -12,6 +12,7 @@ import pandas as pd
 import os, json
 import datetime
 from notifications.notifier import kirim_notifikasi_ml_training
+from utils.logger import LOG_DIR
 
 def train_model():
     df = pd.read_csv("data/training_data.csv")  # sesuaikan dengan pathmu
@@ -37,8 +38,8 @@ def train_model():
         pickle.dump(model, f)
 
     # Simpan log
-    os.makedirs("logs", exist_ok=True)
-    log_path = f"logs/ml_training_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
+    os.makedirs(LOG_DIR, exist_ok=True)
+    log_path = os.path.join(LOG_DIR, f"ml_training_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt")
     with open(log_path, "w") as f:
         log_data = {
             "timestamp": now,

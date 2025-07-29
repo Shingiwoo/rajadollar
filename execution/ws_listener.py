@@ -45,7 +45,11 @@ def start_price_stream(api_key: str, api_secret: str, symbols: list) -> Threaded
         Instance ThreadedWebsocketManager yang sedang berjalan
     """
     twm = ThreadedWebsocketManager(api_key, api_secret)
-    twm.start()
+    try:
+        twm.start()
+    except Exception as e:
+        print(f"WebSocket start error: {e}")
+        return twm
 
     def handle_message(msg):
         try:
@@ -66,3 +70,12 @@ def start_price_stream(api_key: str, api_secret: str, symbols: list) -> Threaded
         )
 
     return twm
+
+
+def stop_price_stream(twm: ThreadedWebsocketManager | None) -> None:
+    """Hentikan stream harga jika aktif."""
+    if twm:
+        try:
+            twm.stop()
+        except Exception as e:
+            print(f"WS stop error: {e}")

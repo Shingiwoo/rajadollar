@@ -13,7 +13,11 @@ def start_signal_stream(api_key, api_secret, client, symbols: list[str], strateg
     global ws_manager, client_global
     client_global = client
     ws_manager = ThreadedWebsocketManager(api_key=api_key, api_secret=api_secret)
-    ws_manager.start()
+    try:
+        ws_manager.start()
+    except Exception as e:
+        print(f"WebSocket signal error: {e}")
+        return
 
     def handle_kline(msg):
         symbol = msg['s']
@@ -27,3 +31,14 @@ def start_signal_stream(api_key, api_secret, client, symbols: list[str], strateg
 
     for sym in symbols:
         ws_manager.start_kline_socket(callback=handle_kline, symbol=sym.lower(), interval='5m')
+
+
+def stop_signal_stream() -> None:
+    """Hentikan stream sinyal jika aktif."""
+    global ws_manager
+    if ws_manager:
+        try:
+            ws_manager.stop()
+        except Exception as e:
+            print(f"Stop signal stream error: {e}")
+        ws_manager = None
