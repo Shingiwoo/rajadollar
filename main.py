@@ -2,6 +2,7 @@ import streamlit as st
 import os, json, timeit
 from utils.binance_helper import create_client
 from utils.trading_controller import start_bot, stop_bot
+import utils.bot_flags as bot_flags
 from utils.logger import setup_logger
 
 # --- Modular Imports ---
@@ -25,6 +26,7 @@ init_db()
 if "bot_running" not in st.session_state:
     st.session_state.bot_running = False
     st.session_state.handles = {}
+    st.session_state.stop_signal = False
 
 mode = st.sidebar.selectbox("Mode", ["testnet", "real"], index=0)
 
@@ -112,11 +114,16 @@ if start_clicked and not st.session_state.bot_running:
             "resume_flag": resume_flag,
             "notif_resume": notif_resume,
         }
+        st.session_state.stop_signal = False
         st.session_state.handles = start_bot(cfg)
-        st.session_state.bot_running = True
-        st.success("✅ Bot berjalan")
+        if bot_flags.IS_READY:
+            st.session_state.bot_running = True
+            st.success("✅ Bot berjalan")
+        else:
+            st.error("Gagal sync saldo Binance")
 
 if stop_clicked and st.session_state.bot_running:
+    st.session_state.stop_signal = True
     stop_bot(st.session_state.handles)
     st.session_state.bot_running = False
     st.success("🛑 Bot dihentikan")

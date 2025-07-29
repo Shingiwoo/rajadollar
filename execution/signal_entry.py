@@ -22,6 +22,7 @@ from notifications.notifier import (
     catat_error,
 )
 from utils.data_provider import load_symbol_filters
+import utils.bot_flags as bot_flags
 from execution.ws_listener import get_price  # Ganti shared_price dengan get_price
 
 def on_signal(
@@ -54,6 +55,8 @@ def on_signal(
         notif_entry: Whether to send entry notifications
         notif_error: Whether to send error notifications
     """
+    if not bot_flags.IS_READY:
+        return
     try:
         params = strategy_params.get(symbol, {})
         filters = load_symbol_filters(client, [symbol])

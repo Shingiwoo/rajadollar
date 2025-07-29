@@ -1,6 +1,8 @@
 from binance import ThreadedWebsocketManager
+import streamlit as st
 from utils.data_provider import fetch_latest_data
 from strategies.scalping_strategy import apply_indicators, generate_signals
+import utils.bot_flags as bot_flags
 
 signal_callbacks = {}
 ws_manager = None
@@ -11,6 +13,9 @@ def register_signal_handler(symbol: str, callback):
 
 def start_signal_stream(api_key, api_secret, client, symbols: list[str], strategy_params):
     global ws_manager, client_global
+    if not bot_flags.IS_READY:
+        print("Bot belum siap, signal stream tidak dimulai")
+        return
     client_global = client
     ws_manager = ThreadedWebsocketManager(api_key=api_key, api_secret=api_secret)
     try:
@@ -20,6 +25,8 @@ def start_signal_stream(api_key, api_secret, client, symbols: list[str], strateg
         return
 
     def handle_kline(msg):
+        if st.session_state.get("stop_signal"):
+            return
         symbol = msg['s']
         if msg['k']['x']:  # kline closed
             df = fetch_latest_data(symbol, client_global, interval='5m', limit=100)

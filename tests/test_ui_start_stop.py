@@ -1,6 +1,7 @@
 import threading
 from unittest.mock import MagicMock, patch
 from utils.trading_controller import start_bot, stop_bot
+from utils.bot_flags import set_ready
 
 
 def dummy_cfg():
@@ -28,6 +29,7 @@ def dummy_cfg():
 
 def test_start_stop_toggle(monkeypatch):
     ev = threading.Event()
+    set_ready(True)
     monkeypatch.setattr("utils.trading_controller.start_price_stream", lambda *a, **k: "ws")
     monkeypatch.setattr("utils.trading_controller.start_signal_stream", lambda *a, **k: None)
     monkeypatch.setattr("utils.trading_controller.start_exit_monitor", lambda *a, **k: (ev, None))
@@ -35,6 +37,7 @@ def test_start_stop_toggle(monkeypatch):
     monkeypatch.setattr("utils.trading_controller.handle_resume", lambda *a, **k: [])
     monkeypatch.setattr("utils.trading_controller.sync_with_binance", lambda *a, **k: None)
     monkeypatch.setattr("utils.trading_controller.register_signal_handler", lambda *a, **k: None)
+    monkeypatch.setattr("utils.trading_controller.get_futures_balance", lambda *a, **k: 1000.0)
 
     handles = start_bot(dummy_cfg())
     assert handles.get("price_ws") == "ws"

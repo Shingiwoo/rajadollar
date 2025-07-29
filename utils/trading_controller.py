@@ -10,6 +10,7 @@ from execution.ws_signal_listener import (
 from execution.exit_monitor import start_exit_monitor
 from execution.signal_entry import on_signal
 from utils.data_provider import load_symbol_filters, get_futures_balance
+import utils.bot_flags as bot_flags
 from utils.resume_helper import handle_resume, sync_with_binance
 
 
@@ -19,6 +20,8 @@ def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
     balance = (
         get_futures_balance(cfg["client"]) if cfg.get("auto_sync") else cfg.get("capital", 1000.0)
     )
+    if cfg.get("auto_sync") and not bot_flags.IS_READY:
+        return handles
     handles["price_ws"] = start_price_stream(
         cfg["api_key"], cfg["api_secret"], cfg["symbols"]
     )
