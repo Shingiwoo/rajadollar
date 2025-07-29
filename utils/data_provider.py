@@ -35,7 +35,7 @@ def load_symbol_filters(client, coins):
     return symbol_filters
 
 def get_futures_balance(client):
-    balance = safe_api_call_with_retry(client.futures_account_balance)
+    balance = safe_api_call_with_retry(client.futures_account())
     if not balance:
         st.warning("Gagal sync saldo Binance")
         set_ready(False)
