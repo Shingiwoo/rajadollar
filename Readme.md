@@ -122,6 +122,38 @@ Strategi dikonfigurasi lewat `config/strategy_params.json`. Model ML akan dilati
 - **Debugging?** Gunakan perintah `/status`, `/log`, atau cek file log di `logs/`.
 
 ---
+## 🐳 VPS Deployment on /var/www/rajadollar
+Untuk produksi di VPS, clone repo ini di `/var/www/rajadollar` lalu bangun dan jalankan container:
+
+```bash
+cd /var/www/rajadollar
+sudo docker build -t rajadollar:latest .
+
+sudo docker run -d --name rajabot \
+  --env-file .env \
+  --cpus="2" \
+  --memory="2g" \
+  -p 8588:8588 \
+  -v /var/www/rajadollar/runtime_state:/app/runtime_state \
+  rajadollar:latest
+```
+
+Pastikan folder `runtime_state` dipasang (`-v`) agar data trading tidak hilang saat container restart.
+
+### Nginx Reverse Proxy
+Buat file `/etc/nginx/sites-available/rajabot.conf` dengan isi seperti `docs/rajabot.conf`, lalu aktifkan:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/rajabot.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Setelah itu bot dapat diakses di `http://bot.appshin.xyz`.
+
+### Catatan tambahan
+- Perintah Telegram: `/status`, `/entry`, `/stop`, `/ml`, `/mltrain`, `/log`, `/chart`.
+- Strategi diatur lewat `config/strategy_params.json`.
+- Model ML bisa dilatih ulang dengan `python ml/training.py` atau via Telegram `/mltrain`.
 
 ## 👨‍💻 Pengembang & Dukungan
 Bot ini didukung dan didokumentasikan oleh [Shingiwoo].

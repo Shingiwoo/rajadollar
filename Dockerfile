@@ -2,13 +2,27 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY . /app
+
+RUN pip install --no-cache-dir \
+    streamlit \
+    pandas \
+    requests \
+    python-binance==1.0.10 \
+    scikit-learn \
+    schedule \
+    python-telegram-bot \
+    python-dotenv \
+    numpy \
+    matplotlib \
+    plotly \
+    seaborn \
+    statsmodels \
+    yfinance \
+    ta
 
 RUN adduser --disabled-password --gecos "" botuser
 USER botuser
-
-COPY --chown=botuser:botuser . .
 
 EXPOSE 8588
 
