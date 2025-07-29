@@ -1,0 +1,64 @@
+from functools import partial
+from typing import Dict, Any
+
+from execution.ws_listener import start_price_stream, stop_price_stream
+from execution.ws_signal_listener import (
+    start_signal_stream,
+    stop_signal_stream,
+    register_signal_handler,
+)
+from execution.exit_monitor import start_exit_monitor
+from execution.signal_entry import on_signal
+from utils.data_provider import load_symbol_filters, get_futures_balance
+from utils.resume_helper import handle_resume, sync_with_binance
+
+
+def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Mulai semua komponen trading dan kembalikan handle."""
+    handles: Dict[str, Any] = {}
+    balance = (
+        get_futures_balance(cfg["client"]) if cfg.get("auto_sync") else cfg.get("capital", 1000.0)
+    )
+    handles["price_ws"] = start_price_stream(
+        cfg["api_key"], cfg["api_secret"], cfg["symbols"]
+    )
+    start_signal_stream(
+        cfg["api_key"], cfg["api_secret"], cfg["client"], cfg["symbols"], cfg["strategy_params"]
+    )
+    symbol_steps = load_symbol_filters(cfg["client"], cfg["symbols"])
+    ev, th = start_exit_monitor(
+        cfg["client"], symbol_steps, notif_exit=cfg.get("notif_exit", True), loss_limit=cfg.get("loss_limit", -50.0)
+    )
+    handles["stop_event"] = ev
+    handles["exit_thread"] = th
+    for sym in cfg["symbols"]:
+        cb = partial(
+            on_signal,
+            client=cfg["client"],
+            strategy_params=cfg["strategy_params"],
+            capital=balance,
+            leverage=cfg["leverage"],
+            risk_pct=cfg["risk_pct"],
+            max_pos=cfg["max_pos"],
+            max_sym=cfg["max_sym"],
+            max_slip=cfg["max_slip"],
+            notif_entry=cfg.get("notif_entry", True),
+            notif_error=cfg.get("notif_error", True),
+        )
+        register_signal_handler(sym, cb)
+    active_positions = handle_resume(cfg.get("resume_flag", False), cfg.get("notif_resume", False))
+    if cfg.get("resume_flag"):
+        sync_with_binance(cfg["client"])
+    handles["active_positions"] = active_positions
+    return handles
+
+
+def stop_bot(handles: Dict[str, Any]) -> None:
+    """Hentikan semua komponen trading."""
+    if not handles:
+        return
+    stop_price_stream(handles.get("price_ws"))
+    stop_signal_stream()
+    ev = handles.get("stop_event")
+    if ev:
+        ev.set()

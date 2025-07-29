@@ -1,13 +1,8 @@
 import streamlit as st
 import os, json, timeit
-from binance.client import Client
-from execution.ws_listener import start_price_stream
-from execution.ws_signal_listener import start_signal_stream, register_signal_handler
-from execution.exit_monitor import start_exit_monitor
-from utils.data_provider import load_symbol_filters
+from utils.binance_helper import create_client
+from utils.trading_controller import start_bot, stop_bot
 from utils.logger import setup_logger
-from execution.signal_entry import on_signal
-from utils.resume_helper import handle_resume, sync_with_binance
 
 # --- Modular Imports ---
 from config import BINANCE_KEYS
@@ -27,21 +22,19 @@ def ping_latency(client):
 # --- UI Setup ---
 st.set_page_config(page_title="RajaDollar Trading", layout="wide")
 init_db()
-mode = st.sidebar.selectbox("MODE Trading", ["Testnet (Simulasi)", "Real Trading"], index=0)
+if "bot_running" not in st.session_state:
+    st.session_state.bot_running = False
+    st.session_state.handles = {}
+
+mode = st.sidebar.selectbox("Mode", ["testnet", "real"], index=0)
 
 # --- API Key ---
-api_key, api_secret = "", ""
-if mode == "Real Trading":
-    api_key = BINANCE_KEYS["real"]["API_KEY"]
-    api_secret = BINANCE_KEYS["real"]["API_SECRET"]
-    client = Client(api_key, api_secret)
-elif mode == "Testnet (Simulasi)":
-    api_key = BINANCE_KEYS["testnet"]["API_KEY"]
-    api_secret = BINANCE_KEYS["testnet"]["API_SECRET"]
-    client = Client(api_key, api_secret, testnet=True)
-    client.API_URL = 'https://testnet.binancefuture.com/fapi'
+client = create_client(mode)
+if client:
+    api_key = client.API_KEY
+    api_secret = client.API_SECRET
 else:
-    client = None
+    api_key = api_secret = ""
 
 # --- Load Strategy Config ---
 STRAT_PATH = "config/strategy_params.json"
@@ -83,24 +76,47 @@ notif_entry = st.sidebar.checkbox("Notifikasi Entry", True)
 notif_exit = st.sidebar.checkbox("Notifikasi Exit", True)
 notif_error = st.sidebar.checkbox("Notifikasi Error", True)
 notif_resume = st.sidebar.checkbox("Notifikasi Resume", True)
-lat = ping_latency(client)
+lat = ping_latency(client) if client else None
 st.sidebar.markdown(f"📶 Latency: `{lat} ms`" if lat else "❌ Ping gagal")
-api_key, api_secret = "", ""
-start_price_stream(api_key, api_secret, multi_symbols)
-active_positions = handle_resume(resume_flag, notif_resume)
-if resume_flag:
-    sync_with_binance(client)
-if resume_flag and active_positions:
-    st.sidebar.success(f"Resume {len(active_positions)} posisi aktif")
-start_signal_stream(api_key, api_secret, client, multi_symbols, strategy_params)
-symbol_steps = load_symbol_filters(client, multi_symbols)
-start_exit_monitor(client, symbol_steps, notif_exit=notif_exit, loss_limit=loss_limit)
 
-# --- WebSocket Signal Handler ---
+col1, col2 = st.columns(2)
+with col1:
+    start_clicked = st.button("START", disabled=st.session_state.bot_running)
+with col2:
+    stop_clicked = st.button("STOP", disabled=not st.session_state.bot_running)
 
+st.sidebar.write(
+    "Status: " + ("🟢 Bot running" if st.session_state.bot_running else "🔴 Bot stopped")
+)
 
-# Register handler
-for sym in multi_symbols:
-    register_signal_handler(sym, on_signal)
+if start_clicked and not st.session_state.bot_running:
+    if not api_key or not api_secret:
+        st.error("API key kosong")
+    else:
+        cfg = {
+            "api_key": api_key,
+            "api_secret": api_secret,
+            "client": client,
+            "symbols": multi_symbols,
+            "strategy_params": strategy_params,
+            "auto_sync": auto_sync,
+            "leverage": leverage,
+            "risk_pct": risk_pct / 100 if risk_pct > 1 else risk_pct,
+            "max_pos": max_pos,
+            "max_sym": max_sym,
+            "max_slip": max_slip,
+            "notif_entry": notif_entry,
+            "notif_error": notif_error,
+            "notif_exit": notif_exit,
+            "loss_limit": loss_limit,
+            "resume_flag": resume_flag,
+            "notif_resume": notif_resume,
+        }
+        st.session_state.handles = start_bot(cfg)
+        st.session_state.bot_running = True
+        st.success("✅ Bot berjalan")
 
-st.success("✅ Bot siap, WebSocket signal aktif")
+if stop_clicked and st.session_state.bot_running:
+    stop_bot(st.session_state.handles)
+    st.session_state.bot_running = False
+    st.success("🛑 Bot dihentikan")

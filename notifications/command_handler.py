@@ -1,5 +1,6 @@
 import os
 import glob
+from utils.logger import LOG_DIR
 import requests
 import logging
 from ml.training import train_model
@@ -94,7 +95,7 @@ def handle_command(command_text, chat_id, bot_state):
     elif command_text.lower() == "/mltrain":
         try:
             train_model()
-            latest_log = sorted(glob.glob("logs/ml_training_*.txt"))[-1]
+            latest_log = sorted(glob.glob(os.path.join(LOG_DIR, "ml_training_*.txt")))[-1]
             with open(latest_log, "r") as f:
                 content = f.read()
             send_reply(chat_id, f"📡 *ML retraining selesai:*\n```json\n{content}\n```")
