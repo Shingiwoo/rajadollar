@@ -86,7 +86,7 @@ def load_symbol_filters(client, coins):
 
 def get_futures_balance(client):
     try:
-        response = safe_api_call_with_retry(client.futures_account_balance)  # Gunakan endpoint yang lebih spesifik
+        response = safe_api_call_with_retry(client.futures_account)  # Gunakan endpoint yang lebih spesifik
         
         # Debugging
         print(f"Raw response: {response}")  # Tambahkan ini untuk melihat response aktual
