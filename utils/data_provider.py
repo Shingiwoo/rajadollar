@@ -86,23 +86,31 @@ def load_symbol_filters(client, coins):
 
 def get_futures_balance(client):
     try:
-        response = safe_api_call_with_retry(client.futures_account)
+        func = getattr(client, "futures_account", None)
+        if func is None:
+            func = getattr(client, "futures_account_balance", None)
+        if func is None:
+            raise AttributeError("no futures account method")
+        response = safe_api_call_with_retry(func)
         
         if isinstance(response, str) and "<html" in response.lower():
             raise ValueError("Binance returned HTML page instead of JSON")
 
-        if not isinstance(response, dict):
+        if isinstance(response, list):
+            assets = response
+        elif isinstance(response, dict):
+            assets = response.get("assets", [])
+        else:
             raise ValueError("Invalid response format")
-
-        assets = response.get("assets", [])
         if not assets:
             raise ValueError("empty response")
 
-        usdt = next((a for a in assets if a["asset"] == "USDT"), None)
+        usdt = next((a for a in assets if a.get("asset") == "USDT"), None)
         if usdt is None:
             raise ValueError("USDT asset not found")
 
-        balance = float(usdt["walletBalance"])
+        bal = usdt.get("walletBalance") or usdt.get("balance")
+        balance = float(bal)
         set_ready(True)
         return balance
 

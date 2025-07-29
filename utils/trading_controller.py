@@ -1,11 +1,16 @@
 from functools import partial
 from typing import Dict, Any
 
-from execution.ws_listener import start_price_stream, stop_price_stream
+from execution.ws_listener import (
+    start_price_stream,
+    stop_price_stream,
+    is_price_stream_running,
+)
 from execution.ws_signal_listener import (
     start_signal_stream,
     stop_signal_stream,
     register_signal_handler,
+    is_signal_stream_running,
 )
 from execution.exit_monitor import start_exit_monitor
 from execution.signal_entry import on_signal
@@ -24,12 +29,17 @@ def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
     )
     if cfg.get("auto_sync") and (not bot_flags.IS_READY or balance == 0):
         return handles
-    handles["price_ws"] = start_price_stream(
-        cfg["api_key"], cfg["api_secret"], cfg["symbols"]
-    )
-    start_signal_stream(
-        cfg["api_key"], cfg["api_secret"], cfg["client"], cfg["symbols"], cfg["strategy_params"]
-    )
+    if not is_price_stream_running():
+        handles["price_ws"] = start_price_stream(
+            cfg["api_key"], cfg["api_secret"], cfg["symbols"]
+        )
+    else:
+        handles["price_ws"] = None
+
+    if not is_signal_stream_running():
+        start_signal_stream(
+            cfg["api_key"], cfg["api_secret"], cfg["client"], cfg["symbols"], cfg["strategy_params"]
+        )
     symbol_steps = load_symbol_filters(cfg["client"], cfg["symbols"])
     ev, th = start_exit_monitor(
         cfg["client"], symbol_steps, notif_exit=cfg.get("notif_exit", True), loss_limit=cfg.get("loss_limit", -50.0)
@@ -67,3 +77,4 @@ def stop_bot(handles: Dict[str, Any]) -> None:
     ev = handles.get("stop_event")
     if ev:
         ev.set()
+

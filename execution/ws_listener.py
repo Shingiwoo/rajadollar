@@ -1,10 +1,13 @@
-from binance import ThreadedWebsocketManager
+import asyncio
+from binance.streams import BinanceSocketManager
 import threading
 from typing import Dict, Optional
 
 # Variabel global dengan type hint dan penamaan jelas
 price_data: Dict[str, float] = {}
 price_lock = threading.Lock()
+_bsm: BinanceSocketManager | None = None
+_tasks: Dict[str, asyncio.Task] = {}
 
 def get_price(symbol: str) -> Optional[float]:
     """Ambil harga terakhir untuk symbol tertentu.
@@ -33,7 +36,7 @@ def clear_prices() -> None:
     with price_lock:
         price_data.clear()
 
-def start_price_stream(api_key: str, api_secret: str, symbols: list) -> ThreadedWebsocketManager:
+def start_price_stream(api_key: str, api_secret: str, symbols: list) -> BinanceSocketManager:
     """Mulai WebSocket stream untuk update harga real-time.
     
     Args:
@@ -44,38 +47,39 @@ def start_price_stream(api_key: str, api_secret: str, symbols: list) -> Threaded
     Returns:
         Instance ThreadedWebsocketManager yang sedang berjalan
     """
-    twm = ThreadedWebsocketManager(api_key, api_secret)
-    try:
-        twm.start()
-    except Exception as e:
-        print(f"WebSocket start error: {e}")
-        return twm
+    global _bsm, _tasks
+    if _tasks:
+        return _bsm
 
-    def handle_message(msg):
-        try:
-            symbol = msg['s']
-            price = float(msg['c'])
-            update_price(symbol, price)
-        except KeyError as e:
-            print(f"Format message tidak valid: {e}")
-        except ValueError as e:
-            print(f"Error konversi harga: {e}")
-        except Exception as e:
-            print(f"Error tidak terduga: {e}")
+    _bsm = BinanceSocketManager(api_key=api_key, api_secret=api_secret)
+
+    async def socket_runner(socket):
+        async with socket as s:
+            while True:
+                try:
+                    msg = await s.recv()
+                    symbol = msg["s"]
+                    price = float(msg["c"])
+                    update_price(symbol, price)
+                except Exception as e:  # pragma: no cover
+                    print(f"WS price error: {e}")
 
     for symbol in symbols:
-        twm.start_symbol_ticker_socket(
-            callback=handle_message,
-            symbol=symbol.lower()
-        )
+        sock = _bsm.symbol_ticker_socket(symbol.lower())
+        _tasks[symbol] = asyncio.create_task(socket_runner(sock))
 
-    return twm
+    return _bsm
 
 
-def stop_price_stream(twm: ThreadedWebsocketManager | None) -> None:
+def stop_price_stream(twm: BinanceSocketManager | None) -> None:
     """Hentikan stream harga jika aktif."""
-    if twm:
-        try:
-            twm.stop()
-        except Exception as e:
-            print(f"WS stop error: {e}")
+    global _tasks
+    for task in _tasks.values():
+        task.cancel()
+    _tasks.clear()
+
+
+def is_price_stream_running() -> bool:
+    """Periksa apakah price stream sedang aktif."""
+    return bool(_tasks)
+
