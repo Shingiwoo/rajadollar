@@ -46,6 +46,9 @@ rajadollar/
     real_api_secret=xxx
     ```
 
+Setelah `.env` terisi, jalankan Streamlit dan pilih `Mode` di sidebar.
+Pilih `testnet` untuk simulasi atau `real` untuk trading sungguhan.
+
 3. **Jalankan bot Streamlit UI:**
     ```sh
     streamlit run main.py

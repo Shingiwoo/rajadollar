@@ -18,9 +18,11 @@ def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Mulai semua komponen trading dan kembalikan handle."""
     handles: Dict[str, Any] = {}
     balance = (
-        get_futures_balance(cfg["client"]) if cfg.get("auto_sync") else cfg.get("capital", 1000.0)
+        get_futures_balance(cfg["client"])
+        if cfg.get("auto_sync")
+        else cfg.get("capital", 1000.0)
     )
-    if cfg.get("auto_sync") and not bot_flags.IS_READY:
+    if cfg.get("auto_sync") and (not bot_flags.IS_READY or balance == 0):
         return handles
     handles["price_ws"] = start_price_stream(
         cfg["api_key"], cfg["api_secret"], cfg["symbols"]
