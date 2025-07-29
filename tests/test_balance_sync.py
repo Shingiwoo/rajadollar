@@ -11,7 +11,7 @@ class DummyST:
         self.errored = True
 
 
-def test_get_balance_testnet(monkeypatch):
+def test_valid_usdt(monkeypatch):
     st_dummy = DummyST()
     monkeypatch.setattr('utils.data_provider.st', st_dummy)
     called = {}
@@ -20,14 +20,15 @@ def test_get_balance_testnet(monkeypatch):
     monkeypatch.setattr('utils.data_provider.set_ready', lambda val: called.setdefault('ready', val))
 
     class Client:
-        def futures_account_balance(self):  # Ubah ke futures_account_balance
-            return [{'asset': 'USDT', 'balance': '55.5'}]  # Format response baru
+        def futures_account(self):
+            return {'assets': [{'asset': 'USDT', 'walletBalance': '55.5'}]}
+
     balance = get_futures_balance(Client())
     assert balance == 55.5
     assert called.get('ready') is True
 
 
-def test_balance_returns_zero_on_html_response(monkeypatch):
+def test_html_response(monkeypatch):
     st_dummy = DummyST()
     monkeypatch.setattr('utils.data_provider.st', st_dummy)
     monkeypatch.setattr('utils.data_provider.safe_api_call_with_retry', lambda func: func())
@@ -40,3 +41,36 @@ def test_balance_returns_zero_on_html_response(monkeypatch):
     result = get_futures_balance(Client())
     assert result == 0.0
     assert st_dummy.errored
+
+
+def test_dict_without_assets(monkeypatch):
+    st_dummy = DummyST()
+    monkeypatch.setattr('utils.data_provider.st', st_dummy)
+    monkeypatch.setattr('utils.data_provider.safe_api_call_with_retry', lambda func: func())
+    monkeypatch.setattr('utils.data_provider.kirim_notifikasi_telegram', lambda msg: None)
+    monkeypatch.setattr('utils.data_provider.set_ready', lambda val: None)
+
+    class Client:
+        def futures_account(self):
+            return {}
+
+    result = get_futures_balance(Client())
+    assert result == 0.0
+    assert st_dummy.errored
+
+
+def test_no_usdt_asset(monkeypatch):
+    st_dummy = DummyST()
+    monkeypatch.setattr('utils.data_provider.st', st_dummy)
+    monkeypatch.setattr('utils.data_provider.safe_api_call_with_retry', lambda func: func())
+    monkeypatch.setattr('utils.data_provider.kirim_notifikasi_telegram', lambda msg: None)
+    monkeypatch.setattr('utils.data_provider.set_ready', lambda val: None)
+
+    class Client:
+        def futures_account(self):
+            return {'assets': [{'asset': 'BTC', 'walletBalance': '1'}]}
+
+    result = get_futures_balance(Client())
+    assert result == 0.0
+    assert st_dummy.errored
+
