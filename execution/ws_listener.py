@@ -36,8 +36,6 @@ def clear_prices() -> None:
     with price_lock:
         price_data.clear()
 
-import asyncio
-
 def start_price_stream(api_key, api_secret, symbols):
     from binance.client import Client
     from binance.streams import BinanceSocketManager
