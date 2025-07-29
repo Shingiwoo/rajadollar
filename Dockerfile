@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir \
     streamlit \
     pandas \
     requests \
-    python-binance \
+    python-binance>=1.0.17,<2.0.0 \
     scikit-learn \
     schedule \
     python-telegram-bot \
