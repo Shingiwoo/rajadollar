@@ -4,7 +4,7 @@ from utils.binance_helper import create_client
 from utils.trading_controller import start_bot, stop_bot
 import utils.bot_flags as bot_flags
 from utils.logger import setup_logger
-import nest_asyncio
+import asyncio
 nest_asyncio.apply()
 
 # --- Modular Imports ---
