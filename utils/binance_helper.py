@@ -9,13 +9,13 @@ def create_client(mode: str) -> Client | None:
         secret = BINANCE_KEYS["real"]["API_SECRET"]
         if not key or not secret:
             return None
-        client = Client(key, secret)
+        client = Client(key, secret, ping=False, tld="com")
         return client
     elif mode in ["testnet", "testnet (simulasi)"]:
         key = BINANCE_KEYS["testnet"]["API_KEY"]
         secret = BINANCE_KEYS["testnet"]["API_SECRET"]
         if not key or not secret:
             return None
-        client = Client(key, secret, testnet=True)
+        client = Client(key, secret, testnet=True, ping=False, tld="com")
         return client
     return None

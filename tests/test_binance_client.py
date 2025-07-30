@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 from utils.binance_helper import create_client
-from binance.streams import BinanceSocketManager
+from binance import BinanceSocketManager
 
 
 def test_client_creation_testnet():

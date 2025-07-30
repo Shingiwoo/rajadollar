@@ -12,6 +12,7 @@ RUN adduser --disabled-password --gecos "" botuser && \
     mkdir -p /app/logs && chown -R botuser /app/logs && \
     mkdir -p /app/runtime_state && chown -R botuser /app/runtime_state
 USER botuser
+VOLUME ["/app/logs", "/app/runtime_state"]
 
 EXPOSE 8588
 

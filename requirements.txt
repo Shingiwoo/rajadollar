@@ -1,7 +1,7 @@
 streamlit
 pandas
 requests
-python-binance
+python-binance>=1.0.28
 scikit-learn
 schedule
 python-telegram-bot
