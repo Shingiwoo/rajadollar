@@ -46,6 +46,7 @@ ERROR_LOG_FILE = os.path.join(LOG_DIR, "error.log")
 
 def catat_error(pesan: str):
     ts = datetime.datetime.now().isoformat()
+    os.makedirs(os.path.dirname(ERROR_LOG_FILE), exist_ok=True)
     with open(ERROR_LOG_FILE, "a") as f:
         f.write(f"{ts} {pesan}\n")
 

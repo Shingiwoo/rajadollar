@@ -5,9 +5,20 @@ import streamlit as st
 from utils.data_provider import fetch_latest_data
 from strategies.scalping_strategy import apply_indicators, generate_signals
 import utils.bot_flags as bot_flags
+from notifications.notifier import laporkan_error
 
-# memungkinkan nested loop agar kompatibel dengan Streamlit
-nest_asyncio.apply()
+_loop: asyncio.AbstractEventLoop | None = None
+
+def _ensure_loop() -> asyncio.AbstractEventLoop:
+    global _loop
+    try:
+        _loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_loop)
+    else:
+        nest_asyncio.apply()
+    return _loop
 
 signal_callbacks = {}
 ws_manager: BinanceSocketManager | None = None
@@ -39,7 +50,7 @@ async def _socket_runner(symbol: str, strategy_params: dict):
             except asyncio.CancelledError:
                 break
             except Exception as e:  # pragma: no cover
-                print(f"WS signal error: {e}")
+                laporkan_error(f"WS signal error: {e}")
                 break
 
 
@@ -51,11 +62,7 @@ def start_signal_stream(client, symbols: list[str], strategy_params):
             print("Bot belum siap, signal stream tidak dimulai")
         return
     client_global = client
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    loop = _ensure_loop()
     try:
         async_client = loop.run_until_complete(
             AsyncClient.create(
@@ -66,11 +73,14 @@ def start_signal_stream(client, symbols: list[str], strategy_params):
         )
         ws_manager = BinanceSocketManager(async_client)
     except Exception as e:  # pragma: no cover
-        print(f"WS signal init error: {e}")
+        laporkan_error(f"WS signal init error: {e}")
         return
 
     for sym in symbols:
-        _tasks[sym] = asyncio.create_task(_socket_runner(sym, strategy_params))
+        try:
+            _tasks[sym] = loop.create_task(_socket_runner(sym, strategy_params))
+        except Exception as e:
+            laporkan_error(f"WS signal task error {sym}: {e}")
 
 
 def stop_signal_stream() -> None:
@@ -79,8 +89,8 @@ def stop_signal_stream() -> None:
     for task in _tasks.values():
         task.cancel()
     _tasks.clear()
+    loop = _loop or asyncio.get_event_loop()
     if async_client:
-        loop = asyncio.get_event_loop()
         loop.run_until_complete(async_client.close_connection())
     ws_manager = None
     async_client = None
