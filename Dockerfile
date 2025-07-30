@@ -4,23 +4,9 @@ WORKDIR /app
 
 COPY . /app
 
-RUN pip install --no-cache-dir \
-    streamlit \
-    pandas \
-    requests \
-    python-binance==1.0.20 \
-    scikit-learn \
-    schedule \
-    python-telegram-bot \
-    python-dotenv \
-    numpy \
-    matplotlib \
-    plotly \
-    seaborn \
-    nest_asyncio \
-    statsmodels \
-    yfinance \
-    ta
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
 
 RUN adduser --disabled-password --gecos "" botuser && \
     mkdir -p /app/logs && chown -R botuser /app/logs && \
