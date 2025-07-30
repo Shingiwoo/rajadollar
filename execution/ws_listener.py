@@ -3,9 +3,20 @@ import nest_asyncio
 from binance import AsyncClient, BinanceSocketManager
 import threading
 from typing import Dict, Optional
+from notifications.notifier import laporkan_error
 
-# memastikan loop bisa ditumpuk (untuk Streamlit/tests)
-nest_asyncio.apply()
+_loop: asyncio.AbstractEventLoop | None = None
+
+def _ensure_loop() -> asyncio.AbstractEventLoop:
+    global _loop
+    try:
+        _loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_loop)
+    else:
+        nest_asyncio.apply()
+    return _loop
 # data harga terakhir
 price_data: Dict[str, float] = {}
 price_lock = threading.Lock()
@@ -46,18 +57,14 @@ async def _socket_runner(symbol: str) -> None:
             except asyncio.CancelledError:
                 break
             except Exception as e:  # pragma: no cover
-                print(f"WS price error: {e}")
+                laporkan_error(f"WS price error: {e}")
                 break
 
 
 def start_price_stream(client, symbols):
     """Memulai websocket harga."""
     global _bsm, _tasks, _async_client
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    loop = _ensure_loop()
     try:
         _async_client = loop.run_until_complete(
             AsyncClient.create(
@@ -68,11 +75,14 @@ def start_price_stream(client, symbols):
         )
         _bsm = BinanceSocketManager(_async_client)
     except Exception as e:  # pragma: no cover - init error
-        print(f"WS init error: {e}")
+        laporkan_error(f"WS init error: {e}")
         return None
 
     for sym in symbols:
-        _tasks[sym] = asyncio.create_task(_socket_runner(sym))
+        try:
+            _tasks[sym] = loop.create_task(_socket_runner(sym))
+        except Exception as e:
+            laporkan_error(f"WS task error {sym}: {e}")
     return _bsm
 
 
@@ -82,8 +92,8 @@ def stop_price_stream(_: BinanceSocketManager | None) -> None:
     for task in _tasks.values():
         task.cancel()
     _tasks.clear()
+    loop = _loop or asyncio.get_event_loop()
     if _async_client:
-        loop = asyncio.get_event_loop()
         loop.run_until_complete(_async_client.close_connection())
     _bsm = None
     _async_client = None
