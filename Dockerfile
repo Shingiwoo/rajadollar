@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir \
     streamlit \
     pandas \
     requests \
-    python-binance==1.0.20 \
+    python-binance==1.0.28 \
     scikit-learn \
     schedule \
     python-telegram-bot \
@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir \
     matplotlib \
     plotly \
     seaborn \
+    nest_asyncio \
     statsmodels \
     yfinance \
     ta
