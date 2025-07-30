@@ -9,7 +9,7 @@ python-dotenv
 numpy
 matplotlib
 plotly
-nest_asyncio>=1.6.0
+nest_asyncio
 seaborn
 statsmodels
 yfinance
