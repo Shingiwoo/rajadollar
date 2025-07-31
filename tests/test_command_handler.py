@@ -1,0 +1,34 @@
+import importlib
+import os
+from unittest.mock import patch
+import pandas as pd
+
+
+def reload_module():
+    import notifications.command_handler as ch
+    importlib.reload(ch)
+    return ch
+
+
+def env():
+    return {"TELEGRAM_TOKEN": "tok", "TELEGRAM_CHAT_ID": "chat"}
+
+
+def test_authorized_status_command():
+    with patch.dict(os.environ, env()):
+        ch = reload_module()
+        with patch("notifications.command_handler.requests.post") as mock_post, \
+             patch.object(ch, "get_all_trades", return_value=pd.DataFrame()):
+            bot_state = {"positions": []}
+            ch.handle_command("/status", "chat", bot_state)
+            data = mock_post.call_args.kwargs["data"]
+            assert "Bot Aktif" in data["text"]
+
+
+def test_unauthorized_command():
+    with patch.dict(os.environ, env()):
+        ch = reload_module()
+        with patch("notifications.command_handler.requests.post") as mock_post:
+            ch.handle_command("/status", "other", {})
+            data = mock_post.call_args.kwargs["data"]
+            assert "Akses ditolak" in data["text"]

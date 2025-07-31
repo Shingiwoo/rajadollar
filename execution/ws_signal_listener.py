@@ -5,7 +5,7 @@ import streamlit as st
 from utils.data_provider import fetch_latest_data
 from strategies.scalping_strategy import apply_indicators, generate_signals
 import utils.bot_flags as bot_flags
-from notifications.notifier import laporkan_error
+from notifications.notifier import laporkan_error, kirim_notifikasi_telegram
 
 _loop: asyncio.AbstractEventLoop | None = None
 
@@ -35,11 +35,12 @@ async def _socket_runner(symbol: str, strategy_params: dict):
     assert ws_manager is not None
     socket = ws_manager.kline_socket(symbol=symbol.lower(), interval="5m")
     async with socket as s:
+        idle_notified = False
         while True:
             try:
                 msg = await s.recv()
                 if st.session_state.get("stop_signal"):
-                    continue
+                    break
                 if msg["k"]["x"]:
                     df = fetch_latest_data(symbol, client_global, interval="5m", limit=100)
                     df = apply_indicators(df, strategy_params[symbol])
@@ -47,6 +48,12 @@ async def _socket_runner(symbol: str, strategy_params: dict):
                     last = df.iloc[-1]
                     if symbol in signal_callbacks:
                         signal_callbacks[symbol](symbol, last)
+                    if not last.get("long_signal") and not last.get("short_signal"):
+                        if not idle_notified:
+                            kirim_notifikasi_telegram(f"Menunggu sinyal {symbol}...")
+                            idle_notified = True
+                    else:
+                        idle_notified = False
             except asyncio.CancelledError:
                 break
             except Exception as e:  # pragma: no cover

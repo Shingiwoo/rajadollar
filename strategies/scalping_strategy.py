@@ -92,21 +92,34 @@ def generate_signals(df, score_threshold=1.4):
     cond_long2 = (df['rsi'] > 40) & (df['rsi'] < 70)
     cond_long3 = df['ml_signal'] == 1
 
-    df['long_signal'] = (
-        cond_long1.astype(int) +
-        0.5 * cond_long2.astype(int) +
-        cond_long3.astype(int)
-    ) >= score_threshold
+    score_long = (
+        cond_long1.astype(float) +
+        0.5 * cond_long2.astype(float) +
+        cond_long3.astype(float)
+    )
+    df['score_long'] = score_long
+    df['long_signal'] = score_long >= score_threshold
 
     # Short signal conditions
     cond_short1 = (df['ema'] < df['sma']) & (df['macd'] < df['macd_signal'])
     cond_short2 = (df['rsi'] > 30) & (df['rsi'] < 60)
     cond_short3 = df['ml_signal'] == 0
 
-    df['short_signal'] = (
-        cond_short1.astype(int) +
-        0.5 * cond_short2.astype(int) +
-        cond_short3.astype(int)
-    ) >= score_threshold
+    score_short = (
+        cond_short1.astype(float) +
+        0.5 * cond_short2.astype(float) +
+        cond_short3.astype(float)
+    )
+    df['score_short'] = score_short
+    df['short_signal'] = score_short >= score_threshold
+
+    if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
+        logging.info(
+            f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f} < {score_threshold}"
+        )
+    else:
+        logging.info(
+            f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f}"
+        )
 
     return df

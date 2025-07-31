@@ -3,21 +3,44 @@ from datetime import datetime
 from utils.state_manager import load_state, save_state
 from utils.safe_api import safe_api_call_with_retry
 from notifications.notifier import kirim_notifikasi_telegram
+import json
+import os
+
+STRAT_PATH = os.path.join("config", "strategy_params.json")
 
 def handle_resume(resume_flag: bool, notif_resume: bool) -> list:
     if not resume_flag:
         return []
 
     active = load_state()
-    if active and notif_resume:
-        # Handle case where 'side' might be missing
-        positions = []
-        for t in active:
-            pos = f"{t.get('symbol', '?')} {t.get('side', '?')}"
-            positions.append(pos)
-        
-        kirim_notifikasi_telegram(f"🔄 Resumed {len(active)} positions: " + ", ".join(positions))
-    return active
+    if not active:
+        return []
+
+    try:
+        with open(STRAT_PATH, "r") as f:
+            strategy_params = json.load(f)
+    except Exception:
+        strategy_params = {}
+
+    valid = []
+    ignored = []
+    for t in active:
+        sym = t.get("symbol")
+        if sym in strategy_params:
+            valid.append(t)
+        else:
+            ignored.append(sym)
+
+    if notif_resume and valid:
+        positions = [f"{t.get('symbol', '?')} {t.get('side', '?')}" for t in valid]
+        kirim_notifikasi_telegram(
+            f"🔄 Resumed {len(valid)} positions: " + ", ".join(positions)
+        )
+    if ignored:
+        kirim_notifikasi_telegram(
+            "⚠️ Orphan positions ignored: " + ", ".join(ignored)
+        )
+    return valid
 
 def sync_with_binance(client) -> List[Dict]:
     """Sync between Binance and local state with auto-recovery."""
@@ -66,20 +89,19 @@ def sync_with_binance(client) -> List[Dict]:
                 "tp": 0.0,
                 "trailing_sl": 0.0,
                 "order_id": f"SYNC-{datetime.now().timestamp()}"
-            })        
-        updated = local_state + new_trades
-        save_state(updated)
+            })
+        local_state = local_state + new_trades
+        save_state(local_state)
         kirim_notifikasi_telegram(
-            f"⚠️ Added {len(missing)} positions: " +
-            ", ".join(f"{s} {side}" for s, side in missing)
+            f"⚠️ Added {len(missing)} positions: " + ", ".join(f"{s} {side}" for s, side in missing)
         )
-        return updated
     
     # Case 3: Extra positions (shouldn't happen)
     extra = local_set - real_positions
     if extra:
         kirim_notifikasi_telegram(
-            f"🔴 Orphan positions: " +
-            ", ".join(f"{s} {side}" for s, side in extra)
+            f"🔴 Orphan positions: " + ", ".join(f"{s} {side}" for s, side in extra)
         )
+        local_state = [t for t in local_state if (t["symbol"], t["side"]) not in extra]
+        save_state(local_state)
     return local_state

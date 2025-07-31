@@ -15,6 +15,30 @@ setup_logger()
 load_dotenv()
 init_db()
 
+# === UTIL ===
+def build_cfg(api_key, api_secret, client, symbols, strategy_params, auto_sync,
+              leverage, risk_pct, max_pos, max_sym, max_slip, loss_limit,
+              notif_entry, notif_exit, notif_error, notif_resume, resume_flag):
+    return {
+        "api_key": api_key,
+        "api_secret": api_secret,
+        "client": client,
+        "symbols": list(symbols),
+        "strategy_params": strategy_params,
+        "auto_sync": auto_sync,
+        "leverage": int(leverage),
+        "risk_pct": float(risk_pct),
+        "max_pos": int(max_pos),
+        "max_sym": int(max_sym),
+        "max_slip": float(max_slip),
+        "loss_limit": float(loss_limit),
+        "notif_entry": notif_entry,
+        "notif_exit": notif_exit,
+        "notif_error": notif_error,
+        "notif_resume": notif_resume,
+        "resume_flag": resume_flag,
+    }
+
 # === STREAMLIT CONFIG ===
 st.set_page_config(page_title="RajaDollar Trading", layout="wide")
 st.title("🤖 RajaDollar Bot")
@@ -99,30 +123,31 @@ if start_clicked and not st.session_state.bot_running:
     if not api_key or not api_secret:
         st.error("❌ API key kosong.")
     else:
-        cfg = {
-            "api_key": api_key,
-            "api_secret": api_secret,
-            "client": client,
-            "symbols": multi_symbols,
-            "strategy_params": strategy_params,
-            "auto_sync": auto_sync,
-            "leverage": leverage,
-            "risk_pct": risk_pct / 100 if risk_pct > 1 else risk_pct,
-            "max_pos": max_pos,
-            "max_sym": max_sym,
-            "max_slip": max_slip,
-            "loss_limit": loss_limit,
-            "notif_entry": notif_entry,
-            "notif_exit": notif_exit,
-            "notif_error": notif_error,
-            "notif_resume": notif_resume,
-            "resume_flag": resume_flag,
-        }
+        cfg = build_cfg(
+            api_key,
+            api_secret,
+            client,
+            multi_symbols,
+            strategy_params,
+            auto_sync,
+            leverage,
+            risk_pct,
+            max_pos,
+            max_sym,
+            max_slip,
+            loss_limit,
+            notif_entry,
+            notif_exit,
+            notif_error,
+            notif_resume,
+            resume_flag,
+        )
         st.session_state.stop_signal = False
         st.session_state.handles = start_bot(cfg)
         if bot_flags.IS_READY:
             st.session_state.bot_running = True
             st.success("✅ Bot berjalan.")
+            st.info("Bot sedang menunggu sinyal...")
         else:
             st.error("❌ Gagal sync saldo Binance.")
 

@@ -18,6 +18,7 @@ from execution.signal_entry import on_signal
 from utils.data_provider import load_symbol_filters, get_futures_balance
 import utils.bot_flags as bot_flags
 from utils.resume_helper import handle_resume, sync_with_binance
+from notifications.notifier import kirim_notifikasi_telegram
 
 
 def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,9 +64,19 @@ def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
             notif_error=cfg.get("notif_error", True),
         )
         register_signal_handler(sym, cb)
-    active_positions = handle_resume(cfg.get("resume_flag", False), cfg.get("notif_resume", False))
+    active_positions = handle_resume(
+        cfg.get("resume_flag", False), cfg.get("notif_resume", False)
+    )
     if cfg.get("resume_flag"):
         sync_with_binance(cfg["client"])
+    if active_positions:
+        filtered = [t for t in active_positions if t.get("symbol") in cfg["symbols"]]
+        if len(filtered) != len(active_positions):
+            kirim_notifikasi_telegram(
+                "⚠️ Orphan positions ignored: "
+                + ", ".join(t.get("symbol") for t in active_positions if t not in filtered)
+            )
+        active_positions = filtered
     handles["active_positions"] = active_positions
     return handles
 

@@ -38,5 +38,15 @@ def test_generate_signals(dummy_df, config):
     df = generate_signals(df, config['score_threshold'])
     assert 'long_signal' in df.columns
     assert 'short_signal' in df.columns
-    assert df['long_signal'].iloc[-1] in [True, False]
-    assert df['short_signal'].iloc[-1] in [True, False]
+    assert 'score_long' in df.columns
+    assert 'score_short' in df.columns
+    assert df['long_signal'].iloc[-1] == (df['score_long'].iloc[-1] >= config['score_threshold'])
+    assert df['short_signal'].iloc[-1] == (df['score_short'].iloc[-1] >= config['score_threshold'])
+
+
+def test_no_entry_logs(dummy_df, config, caplog):
+    config['score_threshold'] = 2.0
+    df = apply_indicators(dummy_df.copy(), config)
+    with caplog.at_level('INFO'):
+        df = generate_signals(df, config['score_threshold'])
+    assert any('Skor long' in r.message for r in caplog.records)
