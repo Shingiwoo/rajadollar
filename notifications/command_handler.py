@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from database.sqlite_logger import get_all_trades, export_trades_csv
 from notifications.notifier import kirim_notifikasi_telegram
 from ml.training import train_model
+from telegram.ext import ApplicationBuilder, MessageHandler, filters
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 AUTHORIZED_CHAT_IDS = [os.getenv("TELEGRAM_CHAT_ID")]
@@ -67,6 +68,8 @@ def handle_command(command_text, chat_id, bot_state):
             send_reply(chat_id, "Format perintah salah. Gunakan /entry SYMBOL")
             return
         _, symbol = parts
+        flag = bot_state.setdefault("manual_entry_flag", {})
+        flag[symbol.upper()] = True
         bot_state["manual_entry"] = symbol.upper()
         send_reply(chat_id, f"📩 Manual ENTRY dikirimkan: {symbol.upper()}")
 
@@ -160,3 +163,19 @@ def handle_command(command_text, chat_id, bot_state):
     else:
         send_reply(chat_id, "🤖 Perintah tidak dikenali.")
 
+
+
+def start_polling(bot_state: dict) -> None:
+    """Jalankan Telegram polling secara asynchronous."""
+    if not TELEGRAM_TOKEN:
+        logging.warning("TELEGRAM_TOKEN kosong, polling tidak dimulai")
+        return
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    async def _all_cmd(update, context):
+        text = update.message.text
+        chat_id = str(update.effective_chat.id)
+        handle_command(text, chat_id, bot_state)
+
+    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^/"), _all_cmd))
+    app.run_polling()

@@ -20,13 +20,18 @@ def base_env():
 def test_status_command():
     with patch.dict(os.environ, base_env()):
         ch = reload_module()
+        df = pd.DataFrame({
+            "symbol": ["BTC"],
+            "side": ["long"],
+            "pnl": [1.0]
+        })
         with patch("notifications.command_handler.requests.post") as mock_post, \
-             patch.object(ch, "get_all_trades", return_value=pd.DataFrame()):
-            bot_state = {"positions": []}
+             patch.object(ch, "get_all_trades", return_value=df):
+            bot_state = {"positions": ["BTC"]}
             ch.handle_command("/status", "chat", bot_state)
             assert mock_post.call_count == 1
             data = mock_post.call_args.kwargs["data"]
-            assert "Bot Aktif" in data["text"]
+            assert "Equity" in data["text"] and "1" in data["text"]
 
 
 def test_entry_command():
@@ -35,7 +40,7 @@ def test_entry_command():
         with patch("notifications.command_handler.requests.post") as mock_post:
             bot_state = {}
             ch.handle_command("/entry BTC", "chat", bot_state)
-            assert bot_state["manual_entry"] == "BTC"
+            assert bot_state["manual_entry_flag"]["BTC"] is True
             data = mock_post.call_args.kwargs["data"]
             assert "ENTRY" in data["text"]
 

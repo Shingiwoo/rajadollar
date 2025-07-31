@@ -1,6 +1,7 @@
 import streamlit as st
 import os, json, timeit, asyncio
 import nest_asyncio
+import logging
 
 from dotenv import load_dotenv
 from utils.logger import setup_logger
@@ -143,11 +144,14 @@ if start_clicked and not st.session_state.bot_running:
             resume_flag,
         )
         st.session_state.stop_signal = False
+        logging.info(
+            f"Start bot with max_pos={max_pos}, max_sym={max_sym}, risk_pct={risk_pct}"
+        )
         st.session_state.handles = start_bot(cfg)
         if bot_flags.IS_READY:
             st.session_state.bot_running = True
             st.success("✅ Bot berjalan.")
-            st.info("Bot sedang menunggu sinyal...")
+            st.info("Bot aktif & menunggu sinyal")
         else:
             st.error("❌ Gagal sync saldo Binance.")
 

@@ -2,6 +2,7 @@ import asyncio
 import nest_asyncio
 from binance import AsyncClient, BinanceSocketManager
 import streamlit as st
+import logging
 from utils.data_provider import fetch_latest_data
 from strategies.scalping_strategy import apply_indicators, generate_signals
 import utils.bot_flags as bot_flags
@@ -36,6 +37,7 @@ async def _socket_runner(symbol: str, strategy_params: dict):
     socket = ws_manager.kline_socket(symbol=symbol.lower(), interval="5m")
     async with socket as s:
         idle_notified = False
+        logging.info(f"\ud83d\udcf1 {symbol} Loop aktif - menunggu sinyal....")
         while True:
             try:
                 msg = await s.recv()
@@ -49,6 +51,7 @@ async def _socket_runner(symbol: str, strategy_params: dict):
                     if symbol in signal_callbacks:
                         signal_callbacks[symbol](symbol, last)
                     if not last.get("long_signal") and not last.get("short_signal"):
+                        logging.info(f"Skipped {symbol} - {last.get('skip_reason', 'wait')}")
                         if not idle_notified:
                             kirim_notifikasi_telegram(f"Menunggu sinyal {symbol}...")
                             idle_notified = True
