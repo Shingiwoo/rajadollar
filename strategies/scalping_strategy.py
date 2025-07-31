@@ -113,7 +113,12 @@ def generate_signals(df, score_threshold=1.4):
     df['score_short'] = score_short
     df['short_signal'] = score_short >= score_threshold
 
+    reason = ""
     if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
+        if not cond_long1.iloc[-1] and not cond_short1.iloc[-1]:
+            reason = "MA not aligned"
+        else:
+            reason = "Score below threshold"
         logging.info(
             f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f} < {score_threshold}"
         )
@@ -122,4 +127,5 @@ def generate_signals(df, score_threshold=1.4):
             f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f}"
         )
 
+    df.loc[df.index[-1], 'skip_reason'] = reason
     return df

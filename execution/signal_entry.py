@@ -78,19 +78,24 @@ def on_signal(
         for side in ['long', 'short']:
             signal_flag = row.get('long_signal' if side == 'long' else 'short_signal', False)
             if not signal_flag:
+                logging.info(f"Skipped {symbol} - signal_flag False for {side}")
                 continue
 
             if not can_open_new_position(symbol, max_pos, max_sym, open_pos):
+                logging.info(f"Skipped {symbol} - max position reached")
                 continue
 
             if is_position_open(active, symbol, side):
+                logging.info(f"Skipped {symbol} - position already open")
                 continue
 
             if is_liquidation_risk(price, side, leverage):
+                logging.info(f"Skipped {symbol} - liquidation risk")
                 continue
 
             order_side = "BUY" if side == 'long' else "SELL"
             if not verify_price_before_order(client, symbol, order_side, price, max_slip / 100):
+                logging.info(f"Skipped {symbol} - price slippage")
                 continue
 
             # Calculate position size

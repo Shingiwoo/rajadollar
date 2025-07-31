@@ -6,6 +6,8 @@ from notifications.notifier import kirim_notifikasi_telegram
 import json
 import os
 
+_LAST_ORPHAN: Set[Tuple[str, str]] = set()
+
 STRAT_PATH = os.path.join("config", "strategy_params.json")
 
 def handle_resume(resume_flag: bool, notif_resume: bool) -> list:
@@ -42,8 +44,8 @@ def handle_resume(resume_flag: bool, notif_resume: bool) -> list:
         )
     return valid
 
-def sync_with_binance(client) -> List[Dict]:
-    """Sync between Binance and local state with auto-recovery."""
+def sync_with_binance(client, auto_ignore: bool = True) -> List[Dict]:
+    """Sync between Binance dan local state dengan opsi auto-ignore orphan."""
     try:
         remote_positions = safe_api_call_with_retry(
             client.futures_position_information
@@ -97,11 +99,17 @@ def sync_with_binance(client) -> List[Dict]:
         )
     
     # Case 3: Extra positions (shouldn't happen)
+    global _LAST_ORPHAN
     extra = local_set - real_positions
     if extra:
-        kirim_notifikasi_telegram(
-            f"🔴 Orphan positions: " + ", ".join(f"{s} {side}" for s, side in extra)
-        )
-        local_state = [t for t in local_state if (t["symbol"], t["side"]) not in extra]
-        save_state(local_state)
+        if auto_ignore:
+            local_state = [t for t in local_state if (t["symbol"], t["side"]) not in extra]
+            save_state(local_state)
+        if extra != _LAST_ORPHAN:
+            kirim_notifikasi_telegram(
+                f"🔴 Orphan positions: " + ", ".join(f"{s} {side}" for s, side in extra)
+            )
+            _LAST_ORPHAN = set(extra)
+    else:
+        _LAST_ORPHAN = set()
     return local_state
