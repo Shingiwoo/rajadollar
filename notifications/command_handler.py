@@ -40,8 +40,10 @@ def send_document(chat_id, file_path):
 
 
 def handle_command(command_text, chat_id, bot_state):
+    """Proses perintah Telegram dengan validasi chat id."""
     logging.info(f"Telegram command from {chat_id}: {command_text}")
     if str(chat_id) not in AUTHORIZED_CHAT_IDS:
+        logging.warning(f"Unauthorized chat {chat_id}")
         send_reply(chat_id, "❌ Akses ditolak.")
         return
 
