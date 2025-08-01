@@ -7,31 +7,57 @@ import os
 import logging
 
 MODEL_PATH = "models/model_scalping.pkl"
-_ml_model = None
+_ml_models: dict[str, object | None] = {}
+_auto_trained: set[str] = set()
 
-def load_ml_model(path: str | None = None):
-    """Muat model ML dari file .pkl sekali saat startup."""
-    global _ml_model, MODEL_PATH
+def _get_model_path(symbol: str) -> str:
+    return os.path.join("models", f"{symbol.upper()}_scalping.pkl") if symbol else MODEL_PATH
+
+def load_ml_model(symbol: str, path: str | None = None):
+    """Muat model ML per simbol sekali saat startup."""
+    global _ml_models, MODEL_PATH, _auto_trained
     if path:
         MODEL_PATH = path
-        _ml_model = None
-    if _ml_model is None:
-        if os.path.exists(MODEL_PATH):
-            with open(MODEL_PATH, "rb") as f:
-                _ml_model = pickle.load(f)
-            logging.info("ML model loaded successfully.")
-        else:
-            logging.warning("ML model not found. Defaulting ml_signal = 1")
-    return _ml_model
+    if symbol in _ml_models:
+        return _ml_models[symbol]
 
-load_ml_model()
+    model_path = _get_model_path(symbol)
+    if os.path.exists(model_path):
+        with open(model_path, "rb") as f:
+            _ml_models[symbol] = pickle.load(f)
+        logging.info(f"Model ML {symbol or 'default'} berhasil dimuat.")
+        return _ml_models[symbol]
 
-def generate_ml_signal(df):
+    logging.error(f"Model ML untuk {symbol} tidak ditemukan di {model_path}.")
+
+    # Auto-train jika MODE=test dan belum pernah
+    if os.getenv("MODE") == "test" and symbol not in _auto_trained:
+        logging.info(f"Auto-training model untuk {symbol}...")
+        try:
+            from ml import historical_trainer
+            historical_trainer.train_from_history(symbol)
+        except Exception as e:  # pragma: no cover - training bisa gagal
+            logging.error(f"Auto-training gagal: {e}")
+        _auto_trained.add(symbol)
+        if os.path.exists(model_path):
+            with open(model_path, "rb") as f:
+                _ml_models[symbol] = pickle.load(f)
+            logging.info(f"Model ML {symbol} dimuat setelah auto-training.")
+            return _ml_models[symbol]
+
+    _ml_models[symbol] = None
+    return None
+
+load_ml_model("")
+
+def generate_ml_signal(df, symbol: str = ""):
     """Prediksi sinyal ML untuk bar terakhir."""
-    model = load_ml_model()
+    model = load_ml_model(symbol)
     if model is None:
+        logging.warning("ML prediction failed or model missing, defaulting ml_signal=1")
         df.loc[df.index[-1], 'ml_signal'] = 1
         return df
+
     features = df[['ema', 'sma', 'macd', 'rsi']].ffill().iloc[-1:]
     if features.isnull().values.any():
         logging.warning("Fitur ML mengandung NaN, default ml_signal = 1")
@@ -81,11 +107,11 @@ def apply_indicators(df, config=None, bb_std=2):
     return df
 
 
-def generate_signals(df, score_threshold=1.4):
+def generate_signals(df, score_threshold=1.4, symbol: str = ""):
     # Hitung sinyal ML sebelum kalkulasi teknikal
     if 'ml_signal' not in df.columns:
         df['ml_signal'] = 1
-    df = generate_ml_signal(df)
+    df = generate_ml_signal(df, symbol)
 
     # Long signal conditions
     cond_long1 = (df['ema'] > df['sma']) & (df['macd'] > df['macd_signal'])
