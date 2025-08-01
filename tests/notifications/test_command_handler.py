@@ -67,19 +67,31 @@ def test_restart_command():
             assert "RESTART" in data["text"]
 
 
-def test_mltrain_command():
+def test_mltrain_symbol_command():
     with patch.dict(os.environ, base_env()):
         ch = reload_module()
-        with patch.object(ch, "train_model") as mock_train, \
-             patch.object(ch, "glob") as mock_glob, \
-             patch("notifications.command_handler.requests.post") as mock_post, \
-             patch("builtins.open", mock_open(read_data="ok")):
-            mock_glob.glob.return_value = ["/app/logs/ml_training_1.txt"]
+        with patch.object(ch, "_train_symbol", return_value=0.95) as mock_train, \
+             patch("notifications.command_handler.requests.post") as mock_post:
             bot_state = {}
-            ch.handle_command("/mltrain", "chat", bot_state)
-            assert mock_train.call_count == 1
+            ch.handle_command("/mltrain BTCUSDT", "chat", bot_state)
+            mock_train.assert_called_with("BTCUSDT")
+            assert mock_post.call_count == 2
             data = mock_post.call_args.kwargs["data"]
-            assert "ML retraining" in data["text"]
+            assert "Akurasi" in data["text"]
+
+
+def test_mltrain_all_command():
+    with patch.dict(os.environ, base_env()):
+        ch = reload_module()
+        with patch.object(ch, "_train_symbol", return_value=0.9) as mock_train, \
+             patch.object(ch, "glob") as mock_glob, \
+             patch("notifications.command_handler.requests.post") as mock_post:
+            mock_glob.glob.return_value = ["data/training_data/BTC.csv", "data/training_data/ETH.csv"]
+            bot_state = {}
+            ch.handle_command("/mltrain all", "chat", bot_state)
+            assert mock_train.call_count == 2
+            data = mock_post.call_args.kwargs["data"]
+            assert "Semua model selesai" in data["text"]
 
 
 def test_log_command():

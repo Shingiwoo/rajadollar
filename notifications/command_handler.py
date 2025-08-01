@@ -3,7 +3,10 @@ import glob
 from utils.logger import LOG_DIR
 import requests
 import logging
-from ml.training import train_model
+import re
+import pandas as pd
+from ml.training import train_model, MIN_DATA
+from ml import historical_trainer
 import matplotlib.pyplot as plt
 from database.sqlite_logger import get_all_trades, export_trades_csv
 from notifications.notifier import kirim_notifikasi_telegram
@@ -37,6 +40,24 @@ def send_document(chat_id, file_path):
     url = f"{API_URL}/sendDocument"
     with open(file_path, 'rb') as f:
         requests.post(url, data={"chat_id": chat_id}, files={"document": f})
+
+
+def _train_symbol(symbol: str) -> float:
+    """Latih model untuk satu simbol dan kembalikan akurasinya."""
+    path = os.path.join("data", "training_data", f"{symbol}.csv")
+    if os.path.exists(path):
+        try:
+            df = pd.read_csv(path)
+        except Exception:
+            df = pd.DataFrame()
+    else:
+        df = pd.DataFrame()
+
+    if len(df) >= MIN_DATA:
+        return train_model(symbol)
+
+    result = historical_trainer.train_from_history(symbol)
+    return result.get("train_accuracy", 0.0) if result else 0.0
 
 
 def handle_command(command_text, chat_id, bot_state):
@@ -96,15 +117,34 @@ def handle_command(command_text, chat_id, bot_state):
             send_document(chat_id, path)
             send_reply(chat_id, "📤 File CSV dikirim.")
     
-    elif command_text.lower() == "/mltrain":
-        try:
-            train_model("all")
-            latest_log = sorted(glob.glob(os.path.join(LOG_DIR, "ml_training_*.txt")))[-1]
-            with open(latest_log, "r") as f:
-                content = f.read()
-            send_reply(chat_id, f"📡 *ML retraining selesai:*\n```json\n{content}\n```")
-        except Exception as e:
-            send_reply(chat_id, f"❌ ML training gagal: {str(e)}")
+    elif command_text.startswith("/mltrain"):
+        parts = command_text.split()
+        if len(parts) < 2:
+            send_reply(chat_id, "⚠ Format: /mltrain SYMBOL atau /mltrain all")
+            return
+        target = parts[1].upper()
+        if target == "ALL":
+            send_reply(chat_id, "⏳ Training ML models untuk semua simbol...")
+            files = glob.glob(os.path.join("data", "training_data", "*.csv"))
+            symbols = [os.path.splitext(os.path.basename(p))[0].upper() for p in files]
+            results = []
+            for sym in symbols:
+                acc = _train_symbol(sym)
+                results.append((sym, acc))
+            lines = [f"- **{s}**: {a*100:.1f}%" for s, a in results]
+            summary = " Semua model selesai dilatih:\n" + "\n".join(lines) + "\n(models tersimpan di folder /models)"
+            send_reply(chat_id, summary)
+        else:
+            if not re.fullmatch(r"[A-Z0-9]{6,12}", target):
+                send_reply(chat_id, "⚠ Symbol tidak valid.")
+                return
+            send_reply(chat_id, f"⏳ Training ML model untuk **{target}**...")
+            acc = _train_symbol(target)
+            if acc > 0:
+                path = f"models/{target}_scalping.pkl"
+                send_reply(chat_id, f"Model **{target}** selesai dilatih. Akurasi: {acc*100:.1f}% . Disimpan di: {path}")
+            else:
+                send_reply(chat_id, f"⚠ Gagal melatih model **{target}** (data tidak mencukupi).")
 
     elif command_text == "/log":
         df = get_all_trades()
