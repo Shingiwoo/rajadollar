@@ -1,5 +1,6 @@
 import streamlit as st
 import os, json, timeit, asyncio
+import pandas as pd
 import nest_asyncio
 import logging
 
@@ -9,6 +10,7 @@ from utils.binance_helper import create_client
 from utils.trading_controller import start_bot, stop_bot
 import utils.bot_flags as bot_flags
 from database.sqlite_logger import init_db
+from ml import training, historical_trainer
 
 # === SETUP ===
 nest_asyncio.apply()
@@ -110,6 +112,24 @@ notif_exit = st.sidebar.checkbox("Notifikasi Exit", True)
 notif_error = st.sidebar.checkbox("Notifikasi Error", True)
 notif_resume = st.sidebar.checkbox("Notifikasi Resume", True)
 
+st.sidebar.subheader("Status Model ML")
+for sym in strategy_params.keys():
+    model_path = os.path.join("models", f"{sym}_scalping.pkl")
+    mark = "✔ ready" if os.path.exists(model_path) else "❌ not trained"
+    st.sidebar.write(f"{sym}: {mark}")
+
+if mode == "testnet":
+    for sym in multi_symbols:
+        model_path = os.path.join("models", f"{sym}_scalping.pkl")
+        if not os.path.exists(model_path):
+            st.sidebar.info(
+                f"No ML model for {sym} yet. Sistem akan melatih otomatis dari histori."
+            )
+
+train_clicked = st.sidebar.button(
+    "Train All Selected Symbols", disabled=len(multi_symbols) == 0
+)
+
 st.sidebar.write("Status: " + ("🟢 Bot aktif" if st.session_state.bot_running else "🔴 Bot nonaktif"))
 
 # === UI Control Buttons ===
@@ -161,3 +181,37 @@ if stop_clicked and st.session_state.bot_running:
     stop_bot(st.session_state.handles)
     st.session_state.bot_running = False
     st.success("🛑 Bot dihentikan.")
+
+# === TRAIN MODELS ===
+if train_clicked:
+    results = {}
+    with st.status("Melatih model...", expanded=True) as status:
+        for sym in multi_symbols:
+            status.update(label=f"{sym} sedang diproses")
+            csv_path = os.path.join("data", "training_data", f"{sym}.csv")
+            use_existing = False
+            if os.path.exists(csv_path):
+                try:
+                    df = pd.read_csv(csv_path)
+                    if len(df) >= training.MIN_DATA:
+                        use_existing = True
+                except Exception:
+                    pass
+
+            if use_existing:
+                acc = training.train_model(sym)
+            else:
+                res = historical_trainer.train_from_history(sym)
+                acc = res.get("train_accuracy", 0.0) if res else 0.0
+            results[sym] = acc
+            status.update(label=f"{sym} selesai: {acc:.2%}")
+
+    st.success(
+        "Training selesai untuk symbols: " + ", ".join(multi_symbols) + ". Model disimpan di folder /models."
+    )
+    if results:
+        st.table(
+            pd.DataFrame([
+                {"Symbol": k, "Akurasi": f"{v:.2%}"} for k, v in results.items()
+            ])
+        )
