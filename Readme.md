@@ -117,7 +117,7 @@ real_api_key=xxx
 real_api_secret=xxx
 ```
 
-Strategi dikonfigurasi lewat `config/strategy_params.json`. Model ML akan dilatih otomatis, bisa juga manual dengan `python ml/training.py` atau via Telegram (`/ml`, `/mltrain`).
+Strategi dikonfigurasi lewat `config/strategy_params.json`. Model ML akan dilatih otomatis. Untuk manual gunakan `python ml/training.py --symbol BTCUSDT` atau `--symbol all` juga bisa lewat Telegram (`/ml`, `/mltrain`).
 
 ### FAQ
 - **Apakah aman restart?** Ya, data di `runtime_state` dipulihkan otomatis.
@@ -156,7 +156,7 @@ Setelah itu bot dapat diakses di `http://bot.appshin.xyz`.
 ### Catatan tambahan
 - Perintah Telegram: `/status`, `/entry`, `/stop`, `/ml`, `/mltrain`, `/log`, `/chart`.
 - Strategi diatur lewat `config/strategy_params.json`.
-- Model ML bisa dilatih ulang dengan `python ml/training.py` atau via Telegram `/mltrain`.
+- Model ML bisa dilatih ulang dengan `python ml/training.py --symbol SYMBOL` atau via Telegram `/mltrain`.
 
 ## 👨‍💻 Pengembang & Dukungan
 Bot ini didukung dan didokumentasikan oleh [Shingiwoo].
