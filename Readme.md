@@ -158,6 +158,44 @@ Setelah itu bot dapat diakses di `http://bot.appshin.xyz`.
 - Strategi diatur lewat `config/strategy_params.json`.
 - Model ML bisa dilatih ulang dengan `python ml/training.py --symbol SYMBOL` atau via Telegram `/mltrain`.
 
+## 📊 Machine Learning Flow
+
+Berikut alur lengkap fitur ML pada bot ini:
+
+1. **Pencatatan Indikator**
+   - Setiap simbol yang dipantau akan terus mencatat data pasar dan indikator (EMA, SMA, MACD, RSI).
+   - Data bar terbaru selalu ditambahkan ke `data/training_data/<symbol>.csv`.
+   - Perhitungan indikator memakai rolling window sehingga bar pertama mungkin berisi `NaN`.
+   - Proses pencatatan berlangsung pasif, tidak tergantung ada sinyal trading atau tidak.
+
+2. **Training Manual**
+   - Pengguna dapat melatih model kapan saja melalui perintah Telegram `/mltrain <symbol>` atau tombol "Train" di UI Streamlit.
+   - Data CSV akan dibersihkan (missing value dibuang), diberi label, lalu dilatih menggunakan `RandomForestClassifier`.
+   - Hasil model disimpan ke `models/<symbol>_scalping.pkl` dan akurasi ditampilkan ke pengguna.
+
+3. **Training Otomatis (Mode Test)**
+   - Jika bot dijalankan pada mode test dan model belum ada, sistem otomatis mengunduh data 30 hari dari Binance lalu melatih model tersebut sekali saat startup.
+   - Fitur ini hanya untuk kemudahan pengujian sehingga tiap simbol baru tetap punya model ML.
+
+4. **Penggunaan Model Saat Trading**
+   - Saat berjalan, strategi memuat model dari folder `models/`.
+   - Untuk setiap bar baru, indikator dihitung dan model memprediksi `ml_signal` (1 = bias long, 0 = bias short).
+   - Sinyal ML digabung dengan indikator klasik untuk menentukan keputusan akhir.
+
+5. **Perilaku Fallback**
+   - Jika model tidak ada atau prediksi gagal, sistem memberi peringatan dan `ml_signal` dianggap `1` sehingga strategi tetap berjalan dengan indikator biasa.
+
+6. **Prasyarat Mode Live**
+   - Sebelum trading sungguhan, pastikan model sudah dilatih. Tanpa model, sinyal ML selalu `1`.
+   - Data log tersimpan di `data/training_data/`, sedangkan model berada di `models/`.
+
+```
+Market Data → CSV → Training → Model (*.pkl) → Prediksi ML → Keputusan Trading
+```
+
+### 🔁 Update Model Secara Berkala
+Untuk performa terbaik, latih ulang model secara rutin dengan data terbaru agar akurasi tetap terjaga.
+
 ## 👨‍💻 Pengembang & Dukungan
 Bot ini didukung dan didokumentasikan oleh [Shingiwoo].
 Support/kontribusi open di [shingiwoo.ind@gmail.com].
