@@ -7,7 +7,6 @@ from ml.training import train_model
 import matplotlib.pyplot as plt
 from database.sqlite_logger import get_all_trades, export_trades_csv
 from notifications.notifier import kirim_notifikasi_telegram
-from ml.training import train_model
 from telegram.ext import ApplicationBuilder, MessageHandler, filters
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -99,7 +98,7 @@ def handle_command(command_text, chat_id, bot_state):
     
     elif command_text.lower() == "/mltrain":
         try:
-            train_model()
+            train_model("all")
             latest_log = sorted(glob.glob(os.path.join(LOG_DIR, "ml_training_*.txt")))[-1]
             with open(latest_log, "r") as f:
                 content = f.read()
@@ -141,7 +140,7 @@ def handle_command(command_text, chat_id, bot_state):
         if len(df) < 10:
             send_reply(chat_id, "📉 Tidak cukup data untuk training.")
         else:
-            train_model()
+            train_model("all")
             send_reply(chat_id, "✅ *Model berhasil dilatih ulang!*")
 
     elif command_text == "/chart":
