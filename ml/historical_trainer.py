@@ -3,6 +3,7 @@ import logging
 import time
 import datetime as dt
 import pickle
+from pathlib import Path
 from typing import Tuple, Optional
 
 import pandas as pd
@@ -140,17 +141,21 @@ def train_from_history(symbol: str) -> Optional[dict]:
         kirim_notifikasi_ml_training(msg)
         return None
 
-    os.makedirs("data/training_data", exist_ok=True)
-    csv_path = os.path.join("data/training_data", f"{symbol.upper()}.csv")
+    data_dir = Path("data/training_data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    if not os.access(data_dir, os.W_OK):
+        logging.error("Folder %s tidak bisa ditulis, data tidak disimpan", data_dir)
+        return None
+    csv_path = data_dir / f"{symbol.upper()}.csv"
     pd.concat([train_df, eval_df]).to_csv(csv_path, index=False)
     logging.info("[ML] Data disimpan ke %s", csv_path)
 
     acc_train = training.train_model(symbol.upper())
-    model_path = os.path.join("models", f"{symbol.upper()}_scalping.pkl")
+    model_path = Path("models") / f"{symbol.upper()}_scalping.pkl"
 
     acc_eval = None
-    if os.path.exists(model_path) and not eval_df.empty:
-        with open(model_path, "rb") as f:
+    if model_path.exists() and not eval_df.empty:
+        with model_path.open("rb") as f:
             model = pickle.load(f)
         preds = model.predict(eval_df[["ema", "sma", "macd", "rsi"]])
         acc_eval = accuracy_score(eval_df["label"], preds)
@@ -159,7 +164,7 @@ def train_from_history(symbol: str) -> Optional[dict]:
     info = {
         "train_accuracy": acc_train,
         "eval_accuracy": acc_eval,
-        "model": model_path if os.path.exists(model_path) else None,
+        "model": str(model_path) if model_path.exists() else None,
     }
     kirim_notifikasi_ml_training(
         f"{symbol.upper()} train {acc_train:.2%}" + (f", eval {acc_eval:.2%}" if acc_eval is not None else "")

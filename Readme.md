@@ -100,6 +100,37 @@ Keterangan:
 - `--cpus` dan `--memory` membatasi resource container.
 - `-p 8588:8588` membuka port Streamlit.
 - `-v` membuat direktori `runtime_state` persisten agar aman saat restart.
+## 🛠️ Deployment Notes
+
+Sebelum menjalankan bot di Docker, siapkan direktori berikut di host:
+
+- `./data/training_data/`
+- `./models/`
+- `./logs/`
+- `./runtime_state/`
+
+Ketika menjalankan container, pasang volume supaya folder tersebut tersimpan di host:
+
+```
+-v $PWD/data:/app/data \
+-v $PWD/models:/app/models \
+-v $PWD/logs:/app/logs \
+-v $PWD/runtime_state:/app/runtime_state
+```
+
+Contoh perintah lengkap:
+
+```bash
+sudo docker run -d \
+  --name rajadollar_bot \
+  --env-file .env \
+  -v $PWD/data:/app/data \
+  -v $PWD/models:/app/models \
+  -v $PWD/logs:/app/logs \
+  -v $PWD/runtime_state:/app/runtime_state \
+  -p 8588:8588 \
+  rajadollar:latest
+```
 
 ### Reverse Proxy Nginx
 1. Install nginx: `sudo apt install nginx`
