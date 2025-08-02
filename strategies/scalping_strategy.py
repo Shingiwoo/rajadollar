@@ -108,7 +108,15 @@ def apply_indicators(df, config=None, bb_std=2):
     return df
 
 
-def generate_signals(df, score_threshold=1.4, symbol: str = ""):
+def generate_signals(df, score_threshold=1.4, symbol: str = "", config=None):
+    if config is None:
+        config = {}
+    rsi_th = config.get('rsi_threshold', 40)
+    long_lower = rsi_th
+    long_upper = min(rsi_th + 30, 100)
+    short_lower = max(rsi_th - 10, 0)
+    short_upper = min(rsi_th + 20, 100)
+
     # Hitung sinyal ML sebelum kalkulasi teknikal
     if 'ml_signal' not in df.columns:
         df['ml_signal'] = 1
@@ -116,7 +124,7 @@ def generate_signals(df, score_threshold=1.4, symbol: str = ""):
 
     # Long signal conditions
     cond_long1 = (df['ema'] > df['sma']) & (df['macd'] > df['macd_signal'])
-    cond_long2 = (df['rsi'] > 40) & (df['rsi'] < 70)
+    cond_long2 = (df['rsi'] > long_lower) & (df['rsi'] < long_upper)
     cond_long3 = df['ml_signal'] == 1
 
     score_long = (
@@ -129,7 +137,7 @@ def generate_signals(df, score_threshold=1.4, symbol: str = ""):
 
     # Short signal conditions
     cond_short1 = (df['ema'] < df['sma']) & (df['macd'] < df['macd_signal'])
-    cond_short2 = (df['rsi'] > 30) & (df['rsi'] < 60)
+    cond_short2 = (df['rsi'] > short_lower) & (df['rsi'] < short_upper)
     cond_short3 = df['ml_signal'] == 0
 
     score_short = (
