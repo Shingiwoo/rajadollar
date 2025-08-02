@@ -14,6 +14,7 @@ def run_backtest(
     direction: str = "both",
     start: str | None = None,
     end: str | None = None,
+    config: dict | None = None,
 ):
     """Jalankan backtest bar-per-bar secara modular.
 
@@ -27,7 +28,7 @@ def run_backtest(
     if end:
         df = df[df.index <= pd.to_datetime(end)]
 
-    df = apply_indicators(df)
+    df = apply_indicators(df, config)
 
     capital = initial_capital
     trades: list[Trade] = []
@@ -37,7 +38,7 @@ def run_backtest(
 
     for i in range(len(df)):
         df_slice = df.iloc[: i + 1].copy()
-        df_slice = generate_signals(df_slice, score_threshold, symbol)
+        df_slice = generate_signals(df_slice, score_threshold, symbol, config)
         row = df_slice.iloc[-1]
         price = row["close"]
         time = df_slice.index[-1].isoformat()
