@@ -17,7 +17,7 @@ rajadollar/
 ├── risk_management/
 ├── execution/
 ├── strategies/
-├── backtesting/
+├── backtest/
 ├── database/
 ├── ui/
 ├── tests/

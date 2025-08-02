@@ -1,7 +1,7 @@
 import random
-from backtesting.data_loader import load_csv
-from backtesting.backtest_engine import run_backtest
-from backtesting.metrics import calculate_metrics
+from backtest.data_loader import load_csv
+from backtest.engine import run_backtest
+from backtest.metrics import calculate_metrics
 
 
 def optimize_strategy(

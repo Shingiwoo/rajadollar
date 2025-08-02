@@ -8,8 +8,8 @@ import requests
 import streamlit as st
 import plotly.graph_objects as go
 
-from backtesting.backtest_engine import run_backtest
-from backtesting.metrics import calculate_metrics
+from backtest.engine import run_backtest
+from backtest.metrics import calculate_metrics
 
 st.set_page_config(page_title="Backtest Multi-Simbol")
 st.title("\ud83d\udd01 Backtest Multi-Simbol")
