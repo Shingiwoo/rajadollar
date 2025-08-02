@@ -2,18 +2,19 @@ import pandas as pd
 from ta.trend import EMAIndicator, SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands, AverageTrueRange
+from sklearn.base import ClassifierMixin
 import pickle
 import os
 import logging
 
 MODEL_PATH = "models/model_scalping.pkl"
-_ml_models: dict[str, object | None] = {}
+_ml_models: dict[str, ClassifierMixin | None] = {}
 _auto_trained: set[str] = set()
 
 def _get_model_path(symbol: str) -> str:
     return os.path.join("models", f"{symbol.upper()}_scalping.pkl") if symbol else MODEL_PATH
 
-def load_ml_model(symbol: str, path: str | None = None):
+def load_ml_model(symbol: str, path: str | None = None) -> ClassifierMixin | None:
     """Muat model ML per simbol sekali saat startup."""
     global _ml_models, MODEL_PATH, _auto_trained
     if path:
@@ -54,7 +55,7 @@ def generate_ml_signal(df, symbol: str = ""):
     """Prediksi sinyal ML untuk bar terakhir."""
     model = load_ml_model(symbol)
     if model is None:
-        logging.warning("ML prediction failed or model missing, defaulting ml_signal=1")
+        logging.warning(f"Prediksi ML gagal atau model tidak ada untuk {symbol}, default ml_signal=1")
         df.loc[df.index[-1], 'ml_signal'] = 1
         return df
 
@@ -66,7 +67,7 @@ def generate_ml_signal(df, symbol: str = ""):
         try:
             pred = int(model.predict(features)[0])
         except Exception as e:
-            logging.error(f"Prediksi ML gagal: {e}")
+            logging.error(f"Prediksi ML {symbol} gagal: {e}")
             pred = 1
     df.loc[df.index[-1], 'ml_signal'] = pred
     return df

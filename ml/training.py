@@ -31,8 +31,17 @@ def _load_dataset(symbol: str) -> pd.DataFrame | None:
     if not path.exists():
         print(f"[ML] Data {path} tidak ditemukan")
         return None
-    df = pd.read_csv(path)
+    try:
+       df = pd.read_csv(path)
+    except Exception as e:
+            logging.error(f"[ML] Error membaca {path}: {e}")
+            return None
+    if "label" not in df.columns:
+        print(f"[ML] Data {path} tidak memiliki kolom 'label'")
+        return None
     df = df.dropna(subset=FEATURE_COLS + ["label"])
+    df = df[df["label"].isin([0, 1])]
+    df["label"] = df["label"].astype(int)
     return df
 
 
@@ -53,17 +62,25 @@ def train_model(symbol: str) -> float:
     y = df["label"]
     X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
     model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X_tr, y_tr)
-
-    preds = model.predict(X_te)
-    acc = accuracy_score(y_te, preds)
+    try:
+        model.fit(X_tr, y_tr)
+        preds = model.predict(X_te)
+        preds = preds.astype(int)
+        assert set(y_te.unique()).issubset({0, 1})
+        assert set(preds).issubset({0, 1})
+        acc = accuracy_score(y_te, preds)
+    except Exception as e:
+        logging.error(f"[ML] Training model {symbol} error: {e}")
+        msg = f"⚠️ *ML Training Gagal* {symbol}\n• Error: `{e}`"
+        kirim_notifikasi_ml_training(msg)
+        return 0.0
 
     now = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
     msg = (
-        f"✅ *ML Training Selesai* {symbol}\n"
-        f"• Akurasi: `{acc:.2%}`\n"
-        f"• Data valid: `{valid}` baris\n"
-        f"• Jam: `{now}`"
+         f"✅ *ML Training Selesai* {symbol}\n"
+         f"• Akurasi: `{acc:.2%}`\n"
+         f"• Data valid: `{valid}` baris\n"
+         f"• Jam: `{now}`"
     )
     kirim_notifikasi_ml_training(msg)
 
@@ -90,11 +107,10 @@ def train_model(symbol: str) -> float:
             f"ml_training_{symbol}_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
         )
         with log_path.open("w") as f:
-            json.dump({"timestamp": now, "accuracy": acc, "data": valid}, f, indent=2)
+            json.dump({"timestamp": now, "accuracy": float(acc), "data": valid}, f, indent=2)
 
     print(f"[ML] {symbol} selesai dengan akurasi {acc:.2%}")
-    return acc
-
+    return float(acc)
 
 def train_all(symbols: List[str] | None = None) -> None:
     if symbols is None:
