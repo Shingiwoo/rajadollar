@@ -193,6 +193,8 @@ Setelah itu bot dapat diakses di `http://bot.appshin.xyz`.
 
 Berikut alur lengkap fitur ML pada bot ini:
 
+Penjelasan rinci tentang proses inference tersedia di [docs/ml_inference.md](docs/ml_inference.md).
+
 1. **Pencatatan Indikator**
    - Setiap simbol yang dipantau akan terus mencatat data pasar dan indikator (EMA, SMA, MACD, RSI).
    - Data bar terbaru selalu ditambahkan ke `data/training_data/<symbol>.csv`.
