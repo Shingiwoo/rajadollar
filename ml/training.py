@@ -3,6 +3,8 @@ import json
 import pickle
 import datetime
 import argparse
+import logging
+from pathlib import Path
 from typing import List
 
 import pandas as pd
@@ -16,16 +18,17 @@ import time
 from notifications.notifier import kirim_notifikasi_ml_training
 from utils.logger import LOG_DIR
 
-DATA_DIR = "data/training_data"
-MODEL_DIR = "models"
+DATA_DIR = Path("data/training_data")
+MODEL_DIR = Path("models")
 FEATURE_COLS = ["ema", "sma", "macd", "rsi"]
 MIN_DATA = 100
 MIN_ACCURACY = 0.6
 
 
 def _load_dataset(symbol: str) -> pd.DataFrame | None:
-    path = os.path.join(DATA_DIR, f"{symbol}.csv")
-    if not os.path.exists(path):
+    data_dir = Path(DATA_DIR)
+    path = data_dir / f"{symbol}.csv"
+    if not path.exists():
         print(f"[ML] Data {path} tidak ditemukan")
         return None
     df = pd.read_csv(path)
@@ -65,21 +68,29 @@ def train_model(symbol: str) -> float:
     kirim_notifikasi_ml_training(msg)
 
     if acc >= MIN_ACCURACY:
-        os.makedirs(MODEL_DIR, exist_ok=True)
-        with open(os.path.join(MODEL_DIR, f"{symbol}_scalping.pkl"), "wb") as f:
-            pickle.dump(model, f)
+        model_dir = Path(MODEL_DIR)
+        model_dir.mkdir(parents=True, exist_ok=True)
+        if not os.access(model_dir, os.W_OK):
+            logging.error("[ML] Folder %s tidak bisa ditulis, model tidak disimpan", model_dir)
+        else:
+            model_path = model_dir / f"{symbol}_scalping.pkl"
+            with model_path.open("wb") as f:
+                pickle.dump(model, f)
     else:
         print(
             f"[ML] Akurasi {acc:.2%} di bawah ambang {MIN_ACCURACY:.0%}, model tidak disimpan"
         )
 
-    os.makedirs(LOG_DIR, exist_ok=True)
-    log_path = os.path.join(
-        LOG_DIR,
-        f"ml_training_{symbol}_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt",
-    )
-    with open(log_path, "w") as f:
-        json.dump({"timestamp": now, "accuracy": acc, "data": valid}, f, indent=2)
+    log_dir = Path(LOG_DIR)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    if not os.access(log_dir, os.W_OK):
+        logging.error("[ML] Folder %s tidak bisa ditulis, log tidak disimpan", log_dir)
+    else:
+        log_path = log_dir / (
+            f"ml_training_{symbol}_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
+        )
+        with log_path.open("w") as f:
+            json.dump({"timestamp": now, "accuracy": acc, "data": valid}, f, indent=2)
 
     print(f"[ML] {symbol} selesai dengan akurasi {acc:.2%}")
     return acc
@@ -87,11 +98,12 @@ def train_model(symbol: str) -> float:
 
 def train_all(symbols: List[str] | None = None) -> None:
     if symbols is None:
-        if not os.path.isdir(DATA_DIR):
-            print(f"[ML] Folder {DATA_DIR} tidak ada")
+        data_dir = Path(DATA_DIR)
+        if not data_dir.is_dir():
+            print(f"[ML] Folder {data_dir} tidak ada")
             return
-        files = [f for f in os.listdir(DATA_DIR) if f.endswith(".csv")]
-        symbols = [os.path.splitext(f)[0] for f in files]
+        files = list(data_dir.glob("*.csv"))
+        symbols = [p.stem for p in files]
     for sym in symbols:
         train_model(sym)
 

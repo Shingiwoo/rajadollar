@@ -1,13 +1,19 @@
 import logging
 import os
+from pathlib import Path
 
-LOG_DIR = os.getenv("LOG_DIR", "/app/logs")
+LOG_DIR = os.getenv("LOG_DIR", "logs")
+
 
 def setup_logger():
-    os.makedirs(LOG_DIR, exist_ok=True)
+    log_dir = Path(LOG_DIR)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    if not os.access(log_dir, os.W_OK):
+        print(f"[LOGGER] Folder {log_dir} tidak bisa ditulis")
+        return
     logging.basicConfig(
-        filename=os.path.join(LOG_DIR, "app.log"),
+        filename=str(log_dir / "app.log"),
         format="%(asctime)s [%(levelname)s] %(message)s",
-        level=logging.INFO
+        level=logging.INFO,
     )
     

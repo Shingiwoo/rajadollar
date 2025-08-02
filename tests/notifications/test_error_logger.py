@@ -10,7 +10,7 @@ def test_laporkan_error():
         with patch("notifications.notifier.open", m), \
              patch("notifications.notifier.requests.post") as mock_post:
             notifier.laporkan_error("kesalahan fatal")
-            m.assert_called_once_with("/app/logs/error.log", "a")
+            m.assert_called_once_with(os.path.join("logs", "error.log"), "a")
             handle = m()
             assert "kesalahan fatal" in handle.write.call_args[0][0]
             mock_post.assert_called_once()
