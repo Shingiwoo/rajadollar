@@ -5,7 +5,7 @@ import requests
 import logging
 import re
 import pandas as pd
-from ml.training import train_model, MIN_DATA
+from ml.training import train_model, MIN_DATA, FEATURE_COLS
 from ml import historical_trainer
 import matplotlib.pyplot as plt
 from database.sqlite_logger import get_all_trades, export_trades_csv
@@ -53,9 +53,16 @@ def _train_symbol(symbol: str) -> float:
     else:
         df = pd.DataFrame()
 
-    if len(df) >= MIN_DATA:
-        return train_model(symbol)
-
+    if "label" in df.columns:
+        valid_count = len(df.dropna(subset=FEATURE_COLS + ["label"]))
+    else:
+        valid_count = 0
+    if valid_count >= MIN_DATA:
+        try:
+            return train_model(symbol)
+        except Exception as e:
+            logging.error(f"Training model {symbol} gagal: {e}")
+            return 0.0
     result = historical_trainer.train_from_history(symbol)
     return result.get("train_accuracy", 0.0) if result else 0.0
 

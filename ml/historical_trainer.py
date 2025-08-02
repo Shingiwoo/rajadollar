@@ -117,9 +117,10 @@ def _prepare_training_data(symbol: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df = df.dropna(subset=["time"] + num_cols)
 
     df = _apply_indicators(df)
-    df = _label_data(df)
+    df = _label_data(df)    
     df = df.dropna(subset=["ema", "sma", "macd", "rsi", "label"])
-
+    df = df[df["label"].isin([0, 1])]
+    df["label"] = df["label"].astype(int)
     if len(df) < 10:
         logging.error("Data %s terlalu sedikit setelah diproses", symbol)
         return pd.DataFrame(), pd.DataFrame()
@@ -158,6 +159,9 @@ def train_from_history(symbol: str) -> Optional[dict]:
         with model_path.open("rb") as f:
             model = pickle.load(f)
         preds = model.predict(eval_df[["ema", "sma", "macd", "rsi"]])
+        preds = preds.astype(int)
+        assert set(eval_df["label"].unique()).issubset({0, 1})
+        assert set(preds).issubset({0, 1})
         acc_eval = accuracy_score(eval_df["label"], preds)
         logging.info("[ML] Akurasi evaluasi %s: %.2f%%", symbol.upper(), acc_eval * 100)
 

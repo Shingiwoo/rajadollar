@@ -194,10 +194,12 @@ def train_selected_symbols(symbols):
             if os.path.exists(csv_path):
                 try:
                     df = pd.read_csv(csv_path)
-                    if len(df) >= training.MIN_DATA:
+                except Exception as e:
+                    df = pd.DataFrame()
+                    logging.error(f"[ML] Gagal membaca {csv_path}: {e}")
+                else:
+                    if "label" in df.columns and len(df.dropna(subset=training.FEATURE_COLS + ["label"])) >= training.MIN_DATA:
                         use_existing = True
-                except Exception:
-                    pass
 
             if use_existing:
                 acc = training.train_model(sym)
