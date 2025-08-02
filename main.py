@@ -183,10 +183,11 @@ if stop_clicked and st.session_state.bot_running:
     st.success("🛑 Bot dihentikan.")
 
 # === TRAIN MODELS ===
-if train_clicked:
+def train_selected_symbols(symbols):
+    """Latih semua simbol dan tampilkan hasil di UI."""
     results = {}
     with st.status("Melatih model...", expanded=True) as status:
-        for sym in multi_symbols:
+        for sym in symbols:
             status.update(label=f"{sym} sedang diproses")
             csv_path = os.path.join("data", "training_data", f"{sym}.csv")
             use_existing = False
@@ -207,7 +208,7 @@ if train_clicked:
             status.update(label=f"{sym} selesai: {acc:.2%}")
 
     st.success(
-        "Training selesai untuk symbols: " + ", ".join(multi_symbols) + ". Model disimpan di folder /models."
+        "Training selesai untuk symbols: " + ", ".join(symbols) + ". Model disimpan di folder /models."
     )
     if results:
         st.table(
@@ -215,3 +216,7 @@ if train_clicked:
                 {"Symbol": k, "Akurasi": f"{v:.2%}"} for k, v in results.items()
             ])
         )
+
+
+if train_clicked:
+    train_selected_symbols(multi_symbols)
