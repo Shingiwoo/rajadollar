@@ -1,5 +1,5 @@
-from backtesting.backtest_engine import run_backtest
-from backtesting.data_loader import load_csv
+from backtest.engine import run_backtest
+from backtest.data_loader import load_csv
 
 
 def test_run_backtest():

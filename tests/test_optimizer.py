@@ -1,4 +1,4 @@
-from backtesting.optimizer import optimize_strategy
+from backtest.optimizer import optimize_strategy
 
 
 def test_optimize_strategy_runs():
