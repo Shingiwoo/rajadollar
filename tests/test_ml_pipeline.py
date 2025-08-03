@@ -92,6 +92,37 @@ def test_train_model_insufficient_data(tmp_path, monkeypatch):
     assert not os.listdir(model_dir)
 
 
+def test_train_model_auto_label(tmp_path, monkeypatch):
+    data_dir, model_dir = setup_training_env(tmp_path, monkeypatch)
+    csv_path = os.path.join(data_dir, "BTCUSDT.csv")
+    pd.DataFrame({
+        "ema": range(30),
+        "sma": range(30),
+        "macd": range(30),
+        "rsi": range(30),
+    }).to_csv(csv_path, index=False)
+    called = {}
+
+    def fake_label(symbol):
+        df = pd.DataFrame({
+            "ema": [0] * 15 + [1] * 15,
+            "sma": [0] * 15 + [1] * 15,
+            "macd": [0] * 15 + [1] * 15,
+            "rsi": [0] * 15 + [1] * 15,
+            "label": [0] * 15 + [1] * 15,
+        })
+        df.to_csv(csv_path, index=False)
+        called["x"] = True
+        return True
+
+    monkeypatch.setattr(historical_trainer, "label_and_save", fake_label)
+    acc = training.train_model("BTCUSDT")
+    assert called.get("x")
+    model_path = os.path.join(model_dir, "BTCUSDT_scalping.pkl")
+    assert os.path.exists(model_path)
+    assert acc > 0
+
+
 def test_training_cli(monkeypatch):
     with patch.object(training, "train_model") as tm, patch.object(training, "train_all") as ta:
         monkeypatch.setattr(sys, "argv", ["training.py", "--symbol", "BTCUSDT"])
