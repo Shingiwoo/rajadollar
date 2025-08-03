@@ -49,10 +49,14 @@ rajadollar/
 Setelah `.env` terisi, jalankan Streamlit dan pilih `Mode` di sidebar.
 Pilih `testnet` untuk simulasi atau `real` untuk trading sungguhan.
 
+Kini tersedia pilihan timeframe (`1m`, `5m`, `15m`) langsung di UI. Semua proses pengambilan data, training, backtest, hingga trading live otomatis memakai timeframe yang dipilih.
+
 3. **Jalankan bot Streamlit UI:**
     ```sh
     streamlit run main.py
     ```
+
+Selama backtest berjalan, akan muncul peringatan agar tidak me-refresh halaman sampai proses selesai.
 
 4. **Jalankan unit test:**
     ```sh
@@ -197,7 +201,7 @@ Penjelasan rinci tentang proses inference tersedia di [docs/ml_inference.md](doc
 
 1. **Pencatatan Indikator**
    - Setiap simbol yang dipantau akan terus mencatat data pasar dan indikator (EMA, SMA, MACD, RSI).
-   - Data bar terbaru selalu ditambahkan ke `data/training_data/<symbol>.csv`.
+   - Data bar terbaru selalu ditambahkan ke `data/training_data/<symbol>_<tf>.csv`.
    - Perhitungan indikator memakai rolling window sehingga bar pertama mungkin berisi `NaN`.
    - Proses pencatatan berlangsung pasif, tidak tergantung ada sinyal trading atau tidak.
 
@@ -205,7 +209,7 @@ Penjelasan rinci tentang proses inference tersedia di [docs/ml_inference.md](doc
    - Pengguna dapat melatih model kapan saja melalui perintah Telegram `/mltrain <symbol>` atau tombol "Train" di UI Streamlit.
    - Data CSV akan dibersihkan (missing value dibuang), diberi label, lalu dilatih menggunakan `RandomForestClassifier`.
    - Proses training otomatis melabeli data jika kolom `label` belum ada. Pengguna tidak perlu menjalankan labeling manual.
-   - Hasil model disimpan ke `models/<symbol>_scalping.pkl` dan akurasi ditampilkan ke pengguna.
+   - Hasil model disimpan ke `models/<symbol>_scalping_<tf>.pkl` dan akurasi ditampilkan ke pengguna.
 
 3. **Training Otomatis (Mode Test)**
    - Jika bot dijalankan pada mode test dan model belum ada, sistem otomatis mengunduh data 30 hari dari Binance lalu melatih model tersebut sekali saat startup.

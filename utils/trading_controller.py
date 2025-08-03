@@ -41,7 +41,7 @@ def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
     if not is_signal_stream_running():
         start_signal_stream(
-            cfg["client"], cfg["symbols"], cfg["strategy_params"]
+            cfg["client"], cfg["symbols"], cfg["strategy_params"], cfg.get("timeframe", "5m")
         )
     symbol_steps = load_symbol_filters(cfg["client"], cfg["symbols"])
     ev, th = start_exit_monitor(

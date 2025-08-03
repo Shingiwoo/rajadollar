@@ -75,26 +75,26 @@ def make_dataset(path, rows):
 
 def test_train_model_valid_data(tmp_path, monkeypatch):
     data_dir, model_dir = setup_training_env(tmp_path, monkeypatch)
-    csv_path = os.path.join(data_dir, "BTCUSDT.csv")
+    csv_path = os.path.join(data_dir, "BTCUSDT_5m.csv")
     make_dataset(csv_path, 200)
-    acc = training.train_model("BTCUSDT")
-    model_path = os.path.join(model_dir, "BTCUSDT_scalping.pkl")
+    acc = training.train_model("BTCUSDT", "5m")
+    model_path = os.path.join(model_dir, "BTCUSDT_scalping_5m.pkl")
     assert os.path.exists(model_path)
     assert acc >= 0.5
 
 
 def test_train_model_insufficient_data(tmp_path, monkeypatch):
     data_dir, model_dir = setup_training_env(tmp_path, monkeypatch)
-    csv_path = os.path.join(data_dir, "BTCUSDT.csv")
+    csv_path = os.path.join(data_dir, "BTCUSDT_5m.csv")
     make_dataset(csv_path, 10)
-    acc = training.train_model("BTCUSDT")
+    acc = training.train_model("BTCUSDT", "5m")
     assert acc == 0.0
     assert not os.listdir(model_dir)
 
 
 def test_train_model_auto_label(tmp_path, monkeypatch):
     data_dir, model_dir = setup_training_env(tmp_path, monkeypatch)
-    csv_path = os.path.join(data_dir, "BTCUSDT.csv")
+    csv_path = os.path.join(data_dir, "BTCUSDT_5m.csv")
     pd.DataFrame({
         "ema": range(30),
         "sma": range(30),
@@ -103,7 +103,7 @@ def test_train_model_auto_label(tmp_path, monkeypatch):
     }).to_csv(csv_path, index=False)
     called = {}
 
-    def fake_label(symbol):
+    def fake_label(symbol, tf=None):
         df = pd.DataFrame({
             "ema": [0] * 15 + [1] * 15,
             "sma": [0] * 15 + [1] * 15,
@@ -116,19 +116,19 @@ def test_train_model_auto_label(tmp_path, monkeypatch):
         return True
 
     monkeypatch.setattr(historical_trainer, "label_and_save", fake_label)
-    acc = training.train_model("BTCUSDT")
+    acc = training.train_model("BTCUSDT", "5m")
     assert called.get("x")
-    model_path = os.path.join(model_dir, "BTCUSDT_scalping.pkl")
+    model_path = os.path.join(model_dir, "BTCUSDT_scalping_5m.pkl")
     assert os.path.exists(model_path)
     assert acc > 0
 
 
 def test_training_cli(monkeypatch):
     with patch.object(training, "train_model") as tm, patch.object(training, "train_all") as ta:
-        monkeypatch.setattr(sys, "argv", ["training.py", "--symbol", "BTCUSDT"])
+        monkeypatch.setattr(sys, "argv", ["training.py", "--symbol", "BTCUSDT", "--timeframe", "5m"])
         training.main()
-        tm.assert_called_once_with("BTCUSDT")
-        monkeypatch.setattr(sys, "argv", ["training.py", "--symbol", "all"])
+        tm.assert_called_once_with("BTCUSDT", "5m")
+        monkeypatch.setattr(sys, "argv", ["training.py", "--symbol", "all", "--timeframe", "5m"])
         training.main()
         ta.assert_called()
 
@@ -170,10 +170,10 @@ def test_labeling_and_cutoff(tmp_path, monkeypatch):
 
     monkeypatch.setattr(historical_trainer, "_fetch_historical_klines", dummy_fetch)
     monkeypatch.setattr(historical_trainer, "accuracy_score", lambda y, p: 1.0)
-    info = historical_trainer.train_from_history("BTCUSDT")
+    info = historical_trainer.train_from_history("BTCUSDT", "5m")
     assert info and info["train_accuracy"] > 0
     assert info["model"] and os.path.exists(info["model"])
-    csv_path = Path("data/training_data/BTCUSDT.csv")
+    csv_path = Path("data/training_data/BTCUSDT_5m.csv")
     assert csv_path.exists()
     df_saved = pd.read_csv(csv_path)
     cutoff = pd.Timestamp.utcnow().tz_localize(None) - pd.Timedelta(days=7)
@@ -198,11 +198,11 @@ def test_generate_ml_signal(monkeypatch):
 
 def test_load_ml_model_cache(tmp_path, monkeypatch):
     model = {"x": 1}
-    model_path = tmp_path / "BTCUSDT_scalping.pkl"
+    model_path = tmp_path / "BTCUSDT_scalping_5m.pkl"
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
     ss._ml_models.clear()
-    monkeypatch.setattr(ss, "_get_model_path", lambda s: str(model_path))
+    monkeypatch.setattr(ss, "_get_model_path", lambda s, tf=None: str(model_path))
     monkeypatch.setattr(ss.os.path, "exists", lambda p: p == str(model_path))
     m = ss.load_ml_model("BTCUSDT")
     assert m == model
@@ -226,16 +226,16 @@ def test_mltrain_commands(monkeypatch):
     with patch.dict(os.environ, env()):
         chm = reload_ch()
         called = []
-        monkeypatch.setattr(chm, "_train_symbol", lambda s: called.append(s) or 0.9)
+        monkeypatch.setattr(chm, "_train_symbol", lambda s, tf=None: called.append((s, tf)) or 0.9)
         with patch("notifications.command_handler.requests.post") as mock_post:
             chm.handle_command("/mltrain BTCUSDT", "chat", {})
-            assert called == ["BTCUSDT"]
+            assert called == [("BTCUSDT", "5m")]
             assert mock_post.call_count >= 2
         called.clear()
-        monkeypatch.setattr(chm, "glob", SimpleNamespace(glob=lambda p: ["data/training_data/BTC.csv", "data/training_data/ETH.csv"]))
+        monkeypatch.setattr(chm, "glob", SimpleNamespace(glob=lambda p: ["data/training_data/BTC_5m.csv", "data/training_data/ETH_5m.csv"]))
         with patch("notifications.command_handler.requests.post") as mock_post:
             chm.handle_command("/mltrain all", "chat", {})
-            assert set(called) == {"BTC", "ETH"}
+            assert set(x[0] for x in called) == {"BTC", "ETH"}
             assert mock_post.call_count >= 1
         with patch("notifications.command_handler.requests.post") as mock_post:
             chm.handle_command("/mltrain btc$", "chat", {})
@@ -262,16 +262,16 @@ def test_streamlit_train_button(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(main, "st", dummy_st)
 
-    def fake_train(sym):
-        path = os.path.join("models", f"{sym}_scalping.pkl")
+    def fake_train(sym, tf):
+        path = os.path.join("models", f"{sym}_scalping_{tf}.pkl")
         with open(path, "wb") as f:
             f.write(b"0")
         return 0.8
 
     monkeypatch.setattr(main, "training", SimpleNamespace(train_model=fake_train, MIN_DATA=0))
 
-    def fake_hist(sym):
-        path = os.path.join("models", f"{sym}_scalping.pkl")
+    def fake_hist(sym, tf):
+        path = os.path.join("models", f"{sym}_scalping_{tf}.pkl")
         with open(path, "wb") as f:
             f.write(b"1")
         return {"train_accuracy": 0.7, "model": path}
@@ -279,5 +279,5 @@ def test_streamlit_train_button(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "historical_trainer", SimpleNamespace(train_from_history=fake_hist))
     main.train_selected_symbols(["BTCUSDT", "ETHUSDT"])
     assert msgs.get("success")
-    assert os.path.exists("models/BTCUSDT_scalping.pkl")
+    assert os.path.exists("models/BTCUSDT_scalping_5m.pkl")
     assert len(msgs.get("table")) == 2

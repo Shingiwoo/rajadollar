@@ -7,6 +7,7 @@ import re
 import pandas as pd
 from ml.training import train_model, MIN_DATA, FEATURE_COLS
 from ml import historical_trainer
+from utils.config_loader import load_global_config
 import matplotlib.pyplot as plt
 from database.sqlite_logger import get_all_trades, export_trades_csv
 from notifications.notifier import kirim_notifikasi_telegram
@@ -42,9 +43,11 @@ def send_document(chat_id, file_path):
         requests.post(url, data={"chat_id": chat_id}, files={"document": f})
 
 
-def _train_symbol(symbol: str) -> float:
+def _train_symbol(symbol: str, timeframe: str | None = None) -> float:
     """Latih model untuk satu simbol dan kembalikan akurasinya."""
-    path = os.path.join("data", "training_data", f"{symbol}.csv")
+    cfg = load_global_config()
+    tf = timeframe or cfg.get("selected_timeframe", "5m")
+    path = os.path.join("data", "training_data", f"{symbol}_{tf}.csv")
     if os.path.exists(path):
         try:
             df = pd.read_csv(path)
@@ -59,11 +62,11 @@ def _train_symbol(symbol: str) -> float:
         valid_count = 0
     if valid_count >= MIN_DATA:
         try:
-            return train_model(symbol)
+            return train_model(symbol, tf)
         except Exception as e:
             logging.error(f"Training model {symbol} gagal: {e}")
             return 0.0
-    result = historical_trainer.train_from_history(symbol)
+    result = historical_trainer.train_from_history(symbol, tf)
     return result.get("train_accuracy", 0.0) if result else 0.0
 
 
@@ -130,13 +133,15 @@ def handle_command(command_text, chat_id, bot_state):
             send_reply(chat_id, "⚠ Format: /mltrain SYMBOL atau /mltrain all")
             return
         target = parts[1].upper()
+        cfg = load_global_config()
+        tf = cfg.get("selected_timeframe", "5m")
         if target == "ALL":
             send_reply(chat_id, "⏳ Training ML models untuk semua simbol...")
-            files = glob.glob(os.path.join("data", "training_data", "*.csv"))
-            symbols = [os.path.splitext(os.path.basename(p))[0].upper() for p in files]
+            files = glob.glob(os.path.join("data", "training_data", f"*_{tf}.csv"))
+            symbols = [os.path.splitext(os.path.basename(p))[0].split("_")[0].upper() for p in files]
             results = []
             for sym in symbols:
-                acc = _train_symbol(sym)
+                acc = _train_symbol(sym, tf)
                 results.append((sym, acc))
             lines = [f"- **{s}**: {a*100:.1f}%" for s, a in results]
             summary = " Semua model selesai dilatih:\n" + "\n".join(lines) + "\n(models tersimpan di folder /models)"
@@ -146,9 +151,9 @@ def handle_command(command_text, chat_id, bot_state):
                 send_reply(chat_id, "⚠ Symbol tidak valid.")
                 return
             send_reply(chat_id, f"⏳ Training ML model untuk **{target}**...")
-            acc = _train_symbol(target)
+            acc = _train_symbol(target, tf)
             if acc > 0:
-                path = f"models/{target}_scalping.pkl"
+                path = f"models/{target}_scalping_{tf}.pkl"
                 send_reply(chat_id, f"Model **{target}** selesai dilatih. Akurasi: {acc*100:.1f}% . Disimpan di: {path}")
             else:
                 send_reply(chat_id, f"⚠ Gagal melatih model **{target}** (data tidak mencukupi).")

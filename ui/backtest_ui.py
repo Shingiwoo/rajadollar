@@ -7,6 +7,7 @@ import pandas as pd
 import requests
 import streamlit as st
 import plotly.graph_objects as go
+from utils.config_loader import load_global_config, save_global_config
 
 from backtest.engine import run_backtest
 from backtest.metrics import calculate_metrics
@@ -23,6 +24,12 @@ if os.path.exists(SYMBOL_FILE):
 else:
     SEMUA_SIMBOL = ["XRPUSDT", "DOGEUSDT", "TURBOUSDT"]
 
+cfg = load_global_config()
+tf_options = ["1m", "5m", "15m"]
+tf = st.selectbox("Pilih Timeframe", tf_options, index=tf_options.index(cfg.get("selected_timeframe", "5m")))
+if tf != cfg.get("selected_timeframe"):
+    save_global_config({"selected_timeframe": tf})
+
 simbol_terpilih = st.multiselect("Pilih Simbol", SEMUA_SIMBOL, default=SEMUA_SIMBOL[:3])
 kol1, kol2 = st.columns(2)
 with kol1:
@@ -30,20 +37,31 @@ with kol1:
 with kol2:
     tanggal_akhir = st.date_input("Tanggal Akhir", dt.date.today())
 
-jalankan = st.button("Run Backtest")
+if "backtest_running" not in st.session_state:
+    st.session_state.backtest_running = False
+
+jalankan = st.button("Run Backtest", disabled=st.session_state.backtest_running)
+if st.session_state.backtest_running:
+    st.warning("⚠️ Backtest sedang berjalan! Jangan refresh atau tutup halaman!")
+    st.markdown("""
+<script>
+  window.onbeforeunload = function() { return "Backtest sedang berjalan! Jangan refresh!"; };
+</script>
+""", unsafe_allow_html=True)
 
 
-def unduh_klines(simbol: str, mulai_ms: int, akhir_ms: int) -> pd.DataFrame:
+def unduh_klines(simbol: str, mulai_ms: int, akhir_ms: int, timeframe: str) -> pd.DataFrame:
     url = "https://api.binance.com/api/v3/klines"
     batas = 1000
     data = []
     awal = mulai_ms
+    step = int(timeframe.rstrip("m")) * 60 * 1000
     while awal < akhir_ms:
         params = {
             "symbol": simbol,
-            "interval": "1m",
+            "interval": timeframe,
             "startTime": awal,
-            "endTime": min(awal + batas * 60 * 1000, akhir_ms),
+            "endTime": min(awal + batas * step, akhir_ms),
             "limit": batas,
         }
         r = requests.get(url, params=params, timeout=10)
@@ -53,7 +71,7 @@ def unduh_klines(simbol: str, mulai_ms: int, akhir_ms: int) -> pd.DataFrame:
         if not klines:
             break
         data.extend(klines)
-        awal = klines[-1][0] + 60 * 1000
+        awal = klines[-1][0] + step
         time.sleep(0.2)  # antisipasi limit
     kolom = [
         "timestamp",
@@ -80,6 +98,7 @@ if jalankan:
     if not simbol_terpilih:
         st.warning("Silakan pilih minimal satu simbol.")
     else:
+        st.session_state.backtest_running = True
         os.makedirs("data/training_data", exist_ok=True)
         mulai_dt = dt.datetime.combine(tanggal_mulai, dt.time())
         akhir_dt = dt.datetime.combine(tanggal_akhir, dt.time()) + dt.timedelta(days=1)
@@ -90,8 +109,8 @@ if jalankan:
         hasil_data: dict[str, pd.DataFrame] = {}
 
         def pekerja(simbol: str):
-            df = unduh_klines(simbol, mulai_ms, akhir_ms)
-            path = f"data/training_data/{simbol}.csv"
+            df = unduh_klines(simbol, mulai_ms, akhir_ms, tf)
+            path = f"data/training_data/{simbol}_{tf}.csv"
             df.to_csv(path)
             return simbol, df
 
@@ -108,7 +127,7 @@ if jalankan:
                 progress.progress(i / len(simbol_terpilih))
         progress.empty()
         for simbol, df in hasil_data.items():
-            path = f"data/training_data/{simbol}.csv"
+            path = f"data/training_data/{simbol}_{tf}.csv"
             try:
                 df_check = pd.read_csv(path, nrows=1)
                 need_label = "label" not in df_check.columns
@@ -117,7 +136,7 @@ if jalankan:
             if need_label:
                 with st.spinner(f"Labeling {simbol}..."):
                     try:
-                        label_and_save(simbol)
+                        label_and_save(simbol, tf)
                     except Exception as e:
                         st.error(f"Labeling {simbol} gagal: {e}")
                         continue
@@ -131,13 +150,17 @@ if jalankan:
                 continue
             with st.spinner(f"Training {simbol}"):
                 try:
-                    training.train_model(simbol)
+                    training.train_model(simbol, tf)
                 except Exception as e:
                     st.error(f"Training {simbol} gagal: {e}")
                     continue
             with st.spinner(f"Menjalankan backtest {simbol}"):
                 trades, equity, _ = run_backtest(
-                    df, symbol=simbol, start=str(tanggal_mulai), end=str(tanggal_akhir)
+                    df,
+                    symbol=simbol,
+                    start=str(tanggal_mulai),
+                    end=str(tanggal_akhir),
+                    timeframe=tf,
                 )
                 metrik, kurva = calculate_metrics(trades, equity)
 
@@ -168,3 +191,4 @@ if jalankan:
             if trades:
                 df_trades = pd.DataFrame([t.to_dict() for t in trades])
                 st.dataframe(df_trades)
+        st.session_state.backtest_running = False

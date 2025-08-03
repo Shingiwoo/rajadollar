@@ -17,6 +17,7 @@ import time
 
 from notifications.notifier import kirim_notifikasi_ml_training
 from utils.logger import LOG_DIR
+from utils.config_loader import load_global_config
 
 DATA_DIR = Path("data/training_data")
 MODEL_DIR = Path("models")
@@ -25,9 +26,14 @@ MIN_DATA = 100
 MIN_ACCURACY = 0.6
 
 
-def _load_dataset(symbol: str) -> pd.DataFrame | None:
+def _get_tf(tf: str | None) -> str:
+    cfg = load_global_config()
+    return tf or cfg.get("selected_timeframe", "5m")
+
+
+def _load_dataset(symbol: str, timeframe: str) -> pd.DataFrame | None:
     data_dir = Path(DATA_DIR)
-    path = data_dir / f"{symbol}.csv"
+    path = data_dir / f"{symbol}_{timeframe}.csv"
     if not path.exists():
         print(f"[ML] Data {path} tidak ditemukan")
         return None
@@ -45,10 +51,10 @@ def _load_dataset(symbol: str) -> pd.DataFrame | None:
     return df
 
 
-def _ensure_labeled(symbol: str) -> bool:
+def _ensure_labeled(symbol: str, timeframe: str) -> bool:
     """Pastikan dataset memiliki kolom label, jika tidak jalankan labeling."""
     data_dir = Path(DATA_DIR)
-    path = data_dir / f"{symbol}.csv"
+    path = data_dir / f"{symbol}_{timeframe}.csv"
 
     needs_label = True
     if path.exists():
@@ -63,7 +69,7 @@ def _ensure_labeled(symbol: str) -> bool:
         try:
             from ml.historical_trainer import label_and_save
             logging.info(f"[ML] Melabeli data {symbol}...")
-            label_and_save(symbol)
+            label_and_save(symbol, timeframe)
         except Exception as e:
             logging.error(f"[ML] Proses labeling {symbol} gagal: {e}")
             return False
@@ -82,12 +88,13 @@ def _ensure_labeled(symbol: str) -> bool:
     return True
 
 
-def train_model(symbol: str) -> float:
+def train_model(symbol: str, timeframe: str | None = None) -> float:
     """Latih model untuk satu simbol dan kembalikan akurasinya."""
-    if not _ensure_labeled(symbol):
+    tf = _get_tf(timeframe)
+    if not _ensure_labeled(symbol, tf):
         print(f"[ML] Data {symbol} belum siap, training dilewati")
         return 0.0
-    df = _load_dataset(symbol)
+    df = _load_dataset(symbol, tf)
     if df is None:
         return 0.0
 
@@ -130,7 +137,7 @@ def train_model(symbol: str) -> float:
         if not os.access(model_dir, os.W_OK):
             logging.error("[ML] Folder %s tidak bisa ditulis, model tidak disimpan", model_dir)
         else:
-            model_path = model_dir / f"{symbol}_scalping.pkl"
+            model_path = model_dir / f"{symbol}_scalping_{tf}.pkl"
             with model_path.open("wb") as f:
                 pickle.dump(model, f)
     else:
@@ -144,7 +151,7 @@ def train_model(symbol: str) -> float:
         logging.error("[ML] Folder %s tidak bisa ditulis, log tidak disimpan", log_dir)
     else:
         log_path = log_dir / (
-            f"ml_training_{symbol}_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
+            f"ml_training_{symbol}_{tf}_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
         )
         with log_path.open("w") as f:
             json.dump({"timestamp": now, "accuracy": float(acc), "data": valid}, f, indent=2)
@@ -152,22 +159,23 @@ def train_model(symbol: str) -> float:
     print(f"[ML] {symbol} selesai dengan akurasi {acc:.2%}")
     return float(acc)
 
-def train_all(symbols: List[str] | None = None) -> None:
+def train_all(symbols: List[str] | None = None, timeframe: str | None = None) -> None:
+    tf = _get_tf(timeframe)
     if symbols is None:
         data_dir = Path(DATA_DIR)
         if not data_dir.is_dir():
             print(f"[ML] Folder {data_dir} tidak ada")
             return
-        files = list(data_dir.glob("*.csv"))
-        symbols = [p.stem for p in files]
+        files = list(data_dir.glob(f"*_{tf}.csv"))
+        symbols = [p.stem.split("_")[0] for p in files]
     for sym in symbols:
-        train_model(sym)
+        train_model(sym, tf)
 
 
 def run_training_scheduler(symbols: List[str] | None = None) -> None:
     def train_job():
         print("[SCHEDULE] Melatih model otomatis...")
-        train_all(symbols)
+        train_all(symbols, timeframe)
         print("[SCHEDULE] ✅ Model berhasil diperbarui (mingguan)")
 
     schedule.every().monday.at("06:00").do(train_job)
@@ -188,12 +196,13 @@ def main():
         default="all",
         help="Simbol untuk dilatih, gunakan 'all' untuk semua",
     )
+    parser.add_argument("--timeframe", "-t", default=None, help="Timeframe data, mis. 5m")
     args = parser.parse_args()
 
     if args.symbol.lower() == "all":
-        train_all()
+        train_all(timeframe=args.timeframe)
     else:
-        train_model(args.symbol.upper())
+        train_model(args.symbol.upper(), args.timeframe)
 
 
 if __name__ == "__main__":
