@@ -5,6 +5,7 @@ import datetime as dt
 import pickle
 from pathlib import Path
 from typing import Tuple, Optional
+import argparse
 
 import pandas as pd
 import requests
@@ -105,6 +106,44 @@ def _label_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def label_and_save(symbol: str) -> bool:
+    """Pastikan data CSV suatu simbol memiliki kolom label."""
+    data_dir = Path("data/training_data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = data_dir / f"{symbol.upper()}.csv"
+
+    if csv_path.exists():
+        try:
+            df = pd.read_csv(csv_path)
+        except Exception as e:
+            logging.error("[ML] Gagal membaca %s: %s", csv_path, e)
+            return False
+        if "label" in df.columns:
+            logging.info("[ML] %s sudah memiliki kolom label", csv_path)
+            return True
+        required = {"open", "high", "low", "close", "volume"}
+        if not required.issubset(df.columns):
+            logging.error("[ML] Kolom wajib tidak lengkap di %s", csv_path)
+            return False
+    else:
+        df = _fetch_historical_klines(symbol)
+        if df.empty:
+            logging.error("[ML] Data %s tidak tersedia untuk labeling", symbol)
+            return False
+
+    df = _apply_indicators(df)
+    df = _label_data(df)
+    df = df.dropna(subset=["ema", "sma", "macd", "rsi", "label"])
+    df = df[df["label"].isin([0, 1])]
+    if df.empty:
+        logging.error("[ML] Labeling %s menghasilkan data kosong", symbol)
+        return False
+    df["label"] = df["label"].astype(int)
+    df.to_csv(csv_path, index=False)
+    logging.info("[ML] Data berlabel disimpan ke %s", csv_path)
+    return True
+
+
 def _prepare_training_data(symbol: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df = _fetch_historical_klines(symbol)
     if df.empty:
@@ -174,3 +213,15 @@ def train_from_history(symbol: str) -> Optional[dict]:
         f"{symbol.upper()} train {acc_train:.2%}" + (f", eval {acc_eval:.2%}" if acc_eval is not None else "")
     )
     return info
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Labeling data historis untuk ML")
+    parser.add_argument("--symbol", required=True, help="Simbol, mis. BTCUSDT")
+    args = parser.parse_args()
+    if not label_and_save(args.symbol.upper()):
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()

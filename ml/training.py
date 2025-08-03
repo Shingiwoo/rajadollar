@@ -45,8 +45,48 @@ def _load_dataset(symbol: str) -> pd.DataFrame | None:
     return df
 
 
+def _ensure_labeled(symbol: str) -> bool:
+    """Pastikan dataset memiliki kolom label, jika tidak jalankan labeling."""
+    data_dir = Path(DATA_DIR)
+    path = data_dir / f"{symbol}.csv"
+
+    needs_label = True
+    if path.exists():
+        try:
+            df_check = pd.read_csv(path, nrows=1)
+            needs_label = "label" not in df_check.columns
+        except Exception as e:
+            logging.error(f"[ML] Gagal membaca {path}: {e}")
+            return False
+
+    if needs_label:
+        try:
+            from ml.historical_trainer import label_and_save
+            logging.info(f"[ML] Melabeli data {symbol}...")
+            label_and_save(symbol)
+        except Exception as e:
+            logging.error(f"[ML] Proses labeling {symbol} gagal: {e}")
+            return False
+
+    if not path.exists():
+        logging.warning(f"[ML] File {path} belum ada setelah labeling")
+        return False
+    try:
+        df_check = pd.read_csv(path, nrows=1)
+    except Exception as e:
+        logging.error(f"[ML] Gagal membaca {path} setelah labeling: {e}")
+        return False
+    if "label" not in df_check.columns:
+        logging.warning(f"[ML] Kolom 'label' masih belum ada di {path}")
+        return False
+    return True
+
+
 def train_model(symbol: str) -> float:
     """Latih model untuk satu simbol dan kembalikan akurasinya."""
+    if not _ensure_labeled(symbol):
+        print(f"[ML] Data {symbol} belum siap, training dilewati")
+        return 0.0
     df = _load_dataset(symbol)
     if df is None:
         return 0.0

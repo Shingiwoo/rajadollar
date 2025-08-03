@@ -204,6 +204,7 @@ Penjelasan rinci tentang proses inference tersedia di [docs/ml_inference.md](doc
 2. **Training Manual**
    - Pengguna dapat melatih model kapan saja melalui perintah Telegram `/mltrain <symbol>` atau tombol "Train" di UI Streamlit.
    - Data CSV akan dibersihkan (missing value dibuang), diberi label, lalu dilatih menggunakan `RandomForestClassifier`.
+   - Proses training otomatis melabeli data jika kolom `label` belum ada. Pengguna tidak perlu menjalankan labeling manual.
    - Hasil model disimpan ke `models/<symbol>_scalping.pkl` dan akurasi ditampilkan ke pengguna.
 
 3. **Training Otomatis (Mode Test)**

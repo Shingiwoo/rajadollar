@@ -10,6 +10,8 @@ import plotly.graph_objects as go
 
 from backtest.engine import run_backtest
 from backtest.metrics import calculate_metrics
+from ml import training
+from ml.historical_trainer import label_and_save
 
 st.set_page_config(page_title="Backtest Multi-Simbol")
 st.title("🔁 Backtest Multi-Simbol")
@@ -105,8 +107,34 @@ if jalankan:
                     st.error(f"Gagal mengunduh {s}: {e}")
                 progress.progress(i / len(simbol_terpilih))
         progress.empty()
-
         for simbol, df in hasil_data.items():
+            path = f"data/training_data/{simbol}.csv"
+            try:
+                df_check = pd.read_csv(path, nrows=1)
+                need_label = "label" not in df_check.columns
+            except Exception:
+                need_label = True
+            if need_label:
+                with st.spinner(f"Labeling {simbol}..."):
+                    try:
+                        label_and_save(simbol)
+                    except Exception as e:
+                        st.error(f"Labeling {simbol} gagal: {e}")
+                        continue
+            try:
+                df_check = pd.read_csv(path, nrows=1)
+            except Exception as e:
+                st.error(f"Data {simbol} tidak bisa dibaca: {e}")
+                continue
+            if "label" not in df_check.columns:
+                st.warning(f"{simbol} masih tanpa label, training dilewati")
+                continue
+            with st.spinner(f"Training {simbol}"):
+                try:
+                    training.train_model(simbol)
+                except Exception as e:
+                    st.error(f"Training {simbol} gagal: {e}")
+                    continue
             with st.spinner(f"Menjalankan backtest {simbol}"):
                 trades, equity, _ = run_backtest(
                     df, symbol=simbol, start=str(tanggal_mulai), end=str(tanggal_akhir)
