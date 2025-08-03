@@ -145,8 +145,8 @@ if jalankan:
             if metrik:
                 cols = st.columns(len(metrik))
                 for (k, v), col in zip(metrik.items(), cols):
-                if isinstance(v, pd.Timedelta):
-                  v = str(v)
+                  if isinstance(v, pd.Timedelta):
+                    v = str(v)
                   col.metric(k, v)
             if kurva is not None:
                 fig = go.Figure()
