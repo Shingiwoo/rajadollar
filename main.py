@@ -11,6 +11,7 @@ from utils.trading_controller import start_bot, stop_bot
 import utils.bot_flags as bot_flags
 from database.sqlite_logger import init_db
 from ml import training, historical_trainer
+from utils.config_loader import load_global_config, save_global_config
 
 # === SETUP ===
 nest_asyncio.apply()
@@ -21,7 +22,8 @@ init_db()
 # === UTIL ===
 def build_cfg(api_key, api_secret, client, symbols, strategy_params, auto_sync,
               leverage, risk_pct, max_pos, max_sym, max_slip, loss_limit,
-              notif_entry, notif_exit, notif_error, notif_resume, resume_flag):
+              notif_entry, notif_exit, notif_error, notif_resume, resume_flag,
+              timeframe):
     return {
         "api_key": api_key,
         "api_secret": api_secret,
@@ -40,6 +42,7 @@ def build_cfg(api_key, api_secret, client, symbols, strategy_params, auto_sync,
         "notif_error": notif_error,
         "notif_resume": notif_resume,
         "resume_flag": resume_flag,
+        "timeframe": timeframe,
     }
 
 # === STREAMLIT CONFIG ===
@@ -80,6 +83,12 @@ if not os.path.exists(STRAT_PATH):
 with open(STRAT_PATH, "r") as f:
     strategy_params = json.load(f)
 
+cfg_global = load_global_config()
+tf_options = ["1m", "5m", "15m"]
+tf = st.sidebar.selectbox("Pilih Timeframe", tf_options, index=tf_options.index(cfg_global.get("selected_timeframe", "5m")))
+if tf != cfg_global.get("selected_timeframe"):
+    save_global_config({"selected_timeframe": tf})
+
 st.sidebar.subheader("Strategi per Symbol")
 if st.sidebar.checkbox("Edit strategy_params.json (Expert)"):
     txt = st.sidebar.text_area("JSON", json.dumps(strategy_params, indent=2), height=250)
@@ -114,13 +123,13 @@ notif_resume = st.sidebar.checkbox("Notifikasi Resume", True)
 
 st.sidebar.subheader("Status Model ML")
 for sym in strategy_params.keys():
-    model_path = os.path.join("models", f"{sym}_scalping.pkl")
+    model_path = os.path.join("models", f"{sym}_scalping_{tf}.pkl")
     mark = "✔ ready" if os.path.exists(model_path) else "❌ not trained"
     st.sidebar.write(f"{sym}: {mark}")
 
 if mode == "testnet":
     for sym in multi_symbols:
-        model_path = os.path.join("models", f"{sym}_scalping.pkl")
+        model_path = os.path.join("models", f"{sym}_scalping_{tf}.pkl")
         if not os.path.exists(model_path):
             st.sidebar.info(
                 f"No ML model for {sym} yet. Sistem akan melatih otomatis dari histori."
@@ -162,6 +171,7 @@ if start_clicked and not st.session_state.bot_running:
             notif_error,
             notif_resume,
             resume_flag,
+            tf,
         )
         st.session_state.stop_signal = False
         logging.info(
@@ -189,7 +199,7 @@ def train_selected_symbols(symbols):
     with st.status("Melatih model...", expanded=True) as status:
         for sym in symbols:
             status.update(label=f"{sym} sedang diproses")
-            csv_path = os.path.join("data", "training_data", f"{sym}.csv")
+            csv_path = os.path.join("data", "training_data", f"{sym}_{tf}.csv")
             use_existing = False
             if os.path.exists(csv_path):
                 try:
@@ -202,9 +212,9 @@ def train_selected_symbols(symbols):
                         use_existing = True
 
             if use_existing:
-                acc = training.train_model(sym)
+                acc = training.train_model(sym, tf)
             else:
-                res = historical_trainer.train_from_history(sym)
+                res = historical_trainer.train_from_history(sym, tf)
                 acc = res.get("train_accuracy", 0.0) if res else 0.0
             results[sym] = acc
             status.update(label=f"{sym} selesai: {acc:.2%}")

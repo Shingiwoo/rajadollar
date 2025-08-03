@@ -32,9 +32,9 @@ def register_signal_handler(symbol: str, callback):
     signal_callbacks[symbol.upper()] = callback
 
 
-async def _socket_runner(symbol: str, strategy_params: dict):
+async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
     assert ws_manager is not None
-    socket = ws_manager.kline_socket(symbol=symbol.lower(), interval="5m")
+    socket = ws_manager.kline_socket(symbol=symbol.lower(), interval=timeframe)
     async with socket as s:
         idle_notified = False
         logging.info(f"\ud83d\udcf1 {symbol} Loop aktif - menunggu sinyal....")
@@ -44,7 +44,7 @@ async def _socket_runner(symbol: str, strategy_params: dict):
                 if st.session_state.get("stop_signal"):
                     break
                 if msg["k"]["x"]:
-                    df = fetch_latest_data(symbol, client_global, interval="5m", limit=100)
+                    df = fetch_latest_data(symbol, client_global, interval=timeframe, limit=100)
                     df = apply_indicators(df, strategy_params[symbol])
                     df = generate_signals(df, strategy_params[symbol]["score_threshold"])
                     last = df.iloc[-1]
@@ -64,7 +64,7 @@ async def _socket_runner(symbol: str, strategy_params: dict):
                 break
 
 
-def start_signal_stream(client, symbols: list[str], strategy_params):
+def start_signal_stream(client, symbols: list[str], strategy_params, timeframe: str):
     """Mulai stream sinyal berdasarkan kline."""
     global ws_manager, client_global, _tasks, async_client
     if not bot_flags.IS_READY or _tasks:
@@ -88,7 +88,7 @@ def start_signal_stream(client, symbols: list[str], strategy_params):
 
     for sym in symbols:
         try:
-            _tasks[sym] = loop.create_task(_socket_runner(sym, strategy_params))
+            _tasks[sym] = loop.create_task(_socket_runner(sym, strategy_params, timeframe))
         except Exception as e:
             laporkan_error(f"WS signal task error {sym}: {e}")
 

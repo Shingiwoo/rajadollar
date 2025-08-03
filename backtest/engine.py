@@ -15,6 +15,7 @@ def run_backtest(
     start: str | None = None,
     end: str | None = None,
     config: dict | None = None,
+    timeframe: str = "5m",
 ):
     """Jalankan backtest bar-per-bar secara modular.
 

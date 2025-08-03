@@ -7,14 +7,22 @@ import pickle
 import os
 import logging
 
+from utils.config_loader import load_global_config
+
 MODEL_PATH = "models/model_scalping.pkl"
 _ml_models: dict[str, ClassifierMixin | None] = {}
 _auto_trained: set[str] = set()
 
-def _get_model_path(symbol: str) -> str:
-    return os.path.join("models", f"{symbol.upper()}_scalping.pkl") if symbol else MODEL_PATH
+def _get_model_path(symbol: str, timeframe: str | None = None) -> str:
+    cfg = load_global_config()
+    tf = timeframe or cfg.get("selected_timeframe", "5m")
+    return (
+        os.path.join("models", f"{symbol.upper()}_scalping_{tf}.pkl")
+        if symbol
+        else MODEL_PATH
+    )
 
-def load_ml_model(symbol: str, path: str | None = None) -> ClassifierMixin | None:
+def load_ml_model(symbol: str, path: str | None = None, timeframe: str | None = None) -> ClassifierMixin | None:
     """Muat model ML per simbol sekali saat startup."""
     global _ml_models, MODEL_PATH, _auto_trained
     if path:
@@ -22,7 +30,7 @@ def load_ml_model(symbol: str, path: str | None = None) -> ClassifierMixin | Non
     if symbol in _ml_models:
         return _ml_models[symbol]
 
-    model_path = _get_model_path(symbol)
+    model_path = _get_model_path(symbol, timeframe)
     if os.path.exists(model_path):
         with open(model_path, "rb") as f:
             _ml_models[symbol] = pickle.load(f)

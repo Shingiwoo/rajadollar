@@ -3,7 +3,7 @@
 Modul ini menerangkan cara penggunaan model Machine Learning saat backtest untuk membentuk sinyal trading.
 
 ## 1. Memuat Model per Simbol
-- Ketika backtest dimulai untuk suatu simbol, sistem mencoba memuat model dari `models/{symbol}_scalping.pkl`.
+- Ketika backtest dimulai untuk suatu simbol, sistem mencoba memuat model dari `models/{symbol}_scalping_<tf>.pkl`.
 - Fungsi `load_ml_model(symbol)` memakai `pickle.load` untuk memuat model yang telah dilatih.
 - Model disimpan di memori agar tidak perlu dimuat ulang pada setiap bar.
 

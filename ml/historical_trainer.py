@@ -15,25 +15,27 @@ from sklearn.metrics import accuracy_score
 
 from ml import training
 from notifications.notifier import kirim_notifikasi_ml_training
+from utils.config_loader import load_global_config
 
 
 BINANCE_URL = "https://api.binance.com/api/v3/klines"
-INTERVAL = "1m"
 LIMIT = 1000
 
 
-def _fetch_historical_klines(symbol: str, days: int = 30) -> pd.DataFrame:
+def _fetch_historical_klines(symbol: str, timeframe: str, days: int = 30) -> pd.DataFrame:
     """Unduh data klines Binance selama `days` hari."""
     end_ts = int(dt.datetime.utcnow().timestamp() * 1000)
     start_ts = end_ts - days * 24 * 60 * 60 * 1000
     all_klines = []
     current = start_ts
-    logging.info("[ML] Mengambil data %s dari Binance", symbol.upper())
+    mult = int(timeframe.rstrip("m"))
+    max_len = days * (24 * 60 // mult)
+    logging.info("[ML] Mengambil data %s %s dari Binance", symbol.upper(), timeframe)
 
-    while current < end_ts and len(all_klines) < days * 1440:
+    while current < end_ts and len(all_klines) < max_len:
         params = {
             "symbol": symbol.upper(),
-            "interval": INTERVAL,
+            "interval": timeframe,
             "limit": LIMIT,
             "startTime": current,
         }
@@ -51,7 +53,7 @@ def _fetch_historical_klines(symbol: str, days: int = 30) -> pd.DataFrame:
             break
         all_klines.extend(data)
         last_open = data[-1][0]
-        current = last_open + 60_000
+        current = last_open + mult * 60_000
         time.sleep(0.1)
 
     if not all_klines:
@@ -106,11 +108,12 @@ def _label_data(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def label_and_save(symbol: str) -> bool:
+def label_and_save(symbol: str, timeframe: str | None = None) -> bool:
     """Pastikan data CSV suatu simbol memiliki kolom label."""
     data_dir = Path("data/training_data")
     data_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = data_dir / f"{symbol.upper()}.csv"
+    tf = timeframe or load_global_config().get("selected_timeframe", "5m")
+    csv_path = data_dir / f"{symbol.upper()}_{tf}.csv"
 
     if csv_path.exists():
         try:
@@ -126,7 +129,7 @@ def label_and_save(symbol: str) -> bool:
             logging.error("[ML] Kolom wajib tidak lengkap di %s", csv_path)
             return False
     else:
-        df = _fetch_historical_klines(symbol)
+        df = _fetch_historical_klines(symbol, tf)
         if df.empty:
             logging.error("[ML] Data %s tidak tersedia untuk labeling", symbol)
             return False
@@ -144,8 +147,8 @@ def label_and_save(symbol: str) -> bool:
     return True
 
 
-def _prepare_training_data(symbol: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    df = _fetch_historical_klines(symbol)
+def _prepare_training_data(symbol: str, timeframe: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    df = _fetch_historical_klines(symbol, timeframe)
     if df.empty:
         logging.error("Data %s tidak tersedia", symbol)
         return pd.DataFrame(), pd.DataFrame()
@@ -171,10 +174,11 @@ def _prepare_training_data(symbol: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
     return train_df, eval_df
 
 
-def train_from_history(symbol: str) -> Optional[dict]:
+def train_from_history(symbol: str, timeframe: str | None = None) -> Optional[dict]:
     """Unduh data historis, latih model, dan kembalikan hasil."""
-    logging.info("[ML] Mulai proses training %s", symbol.upper())
-    train_df, eval_df = _prepare_training_data(symbol)
+    tf = timeframe or load_global_config().get("selected_timeframe", "5m")
+    logging.info("[ML] Mulai proses training %s %s", symbol.upper(), tf)
+    train_df, eval_df = _prepare_training_data(symbol, tf)
     if train_df.empty:
         msg = f"Data training {symbol.upper()} tidak mencukupi"
         logging.error(msg)
@@ -186,12 +190,12 @@ def train_from_history(symbol: str) -> Optional[dict]:
     if not os.access(data_dir, os.W_OK):
         logging.error("Folder %s tidak bisa ditulis, data tidak disimpan", data_dir)
         return None
-    csv_path = data_dir / f"{symbol.upper()}.csv"
+    csv_path = data_dir / f"{symbol.upper()}_{tf}.csv"
     pd.concat([train_df, eval_df]).to_csv(csv_path, index=False)
     logging.info("[ML] Data disimpan ke %s", csv_path)
 
-    acc_train = training.train_model(symbol.upper())
-    model_path = Path("models") / f"{symbol.upper()}_scalping.pkl"
+    acc_train = training.train_model(symbol.upper(), tf)
+    model_path = Path("models") / f"{symbol.upper()}_scalping_{tf}.pkl"
 
     acc_eval = None
     if model_path.exists() and not eval_df.empty:
@@ -218,8 +222,9 @@ def train_from_history(symbol: str) -> Optional[dict]:
 def main():
     parser = argparse.ArgumentParser(description="Labeling data historis untuk ML")
     parser.add_argument("--symbol", required=True, help="Simbol, mis. BTCUSDT")
+    parser.add_argument("--timeframe", "-t", default=None, help="Timeframe data")
     args = parser.parse_args()
-    if not label_and_save(args.symbol.upper()):
+    if not label_and_save(args.symbol.upper(), args.timeframe):
         raise SystemExit(1)
 
 
