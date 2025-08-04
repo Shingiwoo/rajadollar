@@ -29,8 +29,10 @@ if "leverage" not in st.session_state:
 with st.form("param_backtest"):
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        tf = st.selectbox("Pilih Timeframe", ["1m", "5m", "15m"],
-                          index=["1m", "5m", "15m"].index(st.session_state["tf"]), key="tf")
+        tf = st.selectbox(
+            "Pilih Timeframe", ["1m", "5m", "15m"], 
+            index=["1m", "5m", "15m"].index(st.session_state["tf"]), key="tf"
+        )
     with col2:
         initial_capital = st.number_input("Initial Capital ($)", min_value=10, value=st.session_state["initial_capital"], key="initial_capital")
     with col3:
@@ -40,7 +42,7 @@ with st.form("param_backtest"):
     submit_param = st.form_submit_button("Set Parameter")
 
 if submit_param:
-    # st.session_state["tf"] = tf
+    # JANGAN lakukan: st.session_state["tf"] = tf
     st.session_state["initial_capital"] = initial_capital
     st.session_state["risk_per_trade"] = risk_per_trade
     st.session_state["leverage"] = leverage
