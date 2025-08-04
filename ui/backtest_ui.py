@@ -17,40 +17,44 @@ from ml.historical_trainer import label_and_save
 st.set_page_config(page_title="Backtest Multi-Simbol")
 st.title("Backtest Multi-Simbol")
 
-if "tf" not in st.session_state:
-    st.session_state["tf"] = "5m"
-if "initial_capital" not in st.session_state:
-    st.session_state["initial_capital"] = 1000
-if "risk_per_trade" not in st.session_state:
-    st.session_state["risk_per_trade"] = 1.0
-if "leverage" not in st.session_state:
-    st.session_state["leverage"] = 20
+# Hanya inisialisasi sekali, sebelum form!
+for k, v in {
+    "tf": "5m",
+    "initial_capital": 1000,
+    "risk_per_trade": 1.0,
+    "leverage": 20,
+}.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 with st.form("param_backtest"):
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         tf = st.selectbox(
-            "Pilih Timeframe", ["1m", "5m", "15m"], 
-            index=["1m", "5m", "15m"].index(st.session_state["tf"]), key="tf"
+            "Pilih Timeframe", ["1m", "5m", "15m"],
+            index=["1m", "5m", "15m"].index(st.session_state["tf"]),
+            key="tf"
         )
     with col2:
-        initial_capital = st.number_input("Initial Capital ($)", min_value=10, value=st.session_state["initial_capital"], key="initial_capital")
+        initial_capital = st.number_input(
+            "Initial Capital ($)", min_value=10, value=st.session_state["initial_capital"], key="initial_capital"
+        )
     with col3:
-        risk_per_trade = st.number_input("Risk per Trade (%)", min_value=0.1, max_value=10.0, value=st.session_state["risk_per_trade"], key="risk_per_trade")
+        risk_per_trade = st.number_input(
+            "Risk per Trade (%)", min_value=0.1, max_value=10.0, value=st.session_state["risk_per_trade"], key="risk_per_trade"
+        )
     with col4:
-        leverage = st.number_input("Leverage", min_value=1, max_value=125, value=st.session_state["leverage"], key="leverage")
+        leverage = st.number_input(
+            "Leverage", min_value=1, max_value=125, value=st.session_state["leverage"], key="leverage"
+        )
     submit_param = st.form_submit_button("Set Parameter")
 
-if submit_param:
-    # JANGAN lakukan: st.session_state["tf"] = tf
-    st.session_state["initial_capital"] = initial_capital
-    st.session_state["risk_per_trade"] = risk_per_trade
-    st.session_state["leverage"] = leverage
+# ❗❗❗ JANGAN set session_state["tf"] = tf, dsb. Streamlit sudah otomatis!
 
-tf = st.session_state.get("tf", "5m")
-initial_capital = st.session_state.get("initial_capital", 1000)
-risk_per_trade = st.session_state.get("risk_per_trade", 1.0)
-leverage = st.session_state.get("leverage", 20)
+tf = st.session_state["tf"]
+initial_capital = st.session_state["initial_capital"]
+risk_per_trade = st.session_state["risk_per_trade"]
+leverage = st.session_state["leverage"]
 
 SYMBOL_FILE = "config/symbols.txt"
 if os.path.exists(SYMBOL_FILE):
