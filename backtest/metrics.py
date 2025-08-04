@@ -45,6 +45,14 @@ def calculate_metrics(
         "Rata-rata Rugi": kalah["pnl"].mean() if not kalah.empty else 0.0,
     }
 
+    # --------------- Profit Factor ---------------
+    total_profit = menang["pnl"].sum()
+    total_loss = abs(kalah["pnl"].sum())
+    if total_loss == 0:
+        metrik["Profit Factor"] = float("inf")
+    else:
+        metrik["Profit Factor"] = total_profit / total_loss
+
     # --------------- Waktu tahan rata-rata ---------------
     if "exit_time" in df.columns and df["exit_time"].notna().any():
         masuk = pd.to_datetime(df["entry_time"])
@@ -66,6 +74,8 @@ def calculate_metrics(
             metrik["Rasio Sharpe"] = (
                 ret.mean() / ret.std() * np.sqrt(len(ret))
             )
+        else:
+            metrik["Rasio Sharpe"] = 0.0
 
         puncak = eq.cummax()
         drawdown = (eq - puncak) / puncak

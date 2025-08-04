@@ -41,6 +41,9 @@ def run_backtest(
     equity: list[float] = []
     hold = 0
 
+    trig_pct = config.get("trailing_trigger_pct", 0.5) if config else 0.5
+    off_pct = config.get("trailing_offset_pct", 0.25) if config else 0.25
+
     for i in range(len(df)):
         df_slice = df.iloc[: i + 1].copy()
         df_slice = generate_signals(df_slice, score_threshold, symbol, config)
@@ -55,8 +58,8 @@ def run_backtest(
                 active_trade.entry_price,
                 active_trade.side,
                 active_trade.trailing_sl,
-                0.5,
-                0.25,
+                trig_pct,
+                off_pct,
             )
 
             if check_exit_condition(

@@ -196,6 +196,8 @@ if jalankan:
                     continue
             with st.spinner(f"Menjalankan backtest {simbol}"):
                 cfg_sym = STRATEGY_PARAMS.get(simbol, {})
+                if not cfg_sym:
+                    st.warning(f"{simbol} belum memiliki parameter, menggunakan default.")
                 trades, equity, _ = run_backtest(
                     df,
                     symbol=simbol,
@@ -204,6 +206,7 @@ if jalankan:
                     timeframe=tf,
                     initial_capital=initial_capital,
                     config=cfg_sym,
+                    score_threshold=cfg_sym.get("score_threshold", 1.4),
                     risk_per_trade=risk_per_trade,
                     leverage=leverage,
                 )
@@ -217,14 +220,15 @@ if jalankan:
                     v = str(v)
                   col.metric(k, v)
             params = STRATEGY_PARAMS.get(simbol, {})
-            ema_p = params.get("ema_period", "-")
-            sma_p = params.get("sma_period", "-")
-            rsi_th = params.get("rsi_threshold", "-")
-            st.info(f"""
-**Parameter Strategi:**  
-EMA: {ema_p}, SMA: {sma_p}, RSI: {rsi_th}  
+            st.info(
+                f"""
+**Parameter Strategi:**
+EMA: {params.get('ema_period', '-')}, SMA: {params.get('sma_period', '-')}, RSI Period: {params.get('rsi_period', '-')}
+MACD F/S/Signal: {params.get('macd_fast', '-')}/{params.get('macd_slow', '-')}/{params.get('macd_signal', '-')}
+Score Th: {params.get('score_threshold', '-')}, Trail Off/Trig: {params.get('trailing_offset_pct', '-')}/{params.get('trailing_trigger_pct', '-')}
 Timeframe: {tf} | Initial Capital: ${initial_capital} | Risk/Trade: {risk_per_trade}% | Leverage: {leverage}x
-""")
+"""
+            )
             if kurva is not None:
                 fig = go.Figure()
                 fig.add_trace(
