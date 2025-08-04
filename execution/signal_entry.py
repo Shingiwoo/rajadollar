@@ -98,6 +98,11 @@ def on_signal(
                 logging.info(f"Skipped {symbol} - price slippage")
                 continue
 
+            try:
+                client.futures_change_leverage(symbol=symbol, leverage=leverage)
+            except Exception as e:
+                logging.warning(f"Gagal set leverage {symbol}: {e}")
+
             # Calculate position size
             stop_price = price * (0.99 if side == 'long' else 1.01)
             qty = calculate_order_qty(symbol, price, stop_price, capital, risk_pct, leverage)
