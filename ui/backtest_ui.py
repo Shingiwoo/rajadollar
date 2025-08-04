@@ -40,7 +40,7 @@ with st.form("param_backtest"):
     submit_param = st.form_submit_button("Set Parameter")
 
 if submit_param:
-    st.session_state["tf"] = tf
+    # st.session_state["tf"] = tf
     st.session_state["initial_capital"] = initial_capital
     st.session_state["risk_per_trade"] = risk_per_trade
     st.session_state["leverage"] = leverage
