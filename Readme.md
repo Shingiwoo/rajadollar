@@ -155,6 +155,7 @@ real_api_secret=xxx
 
 Strategi dikonfigurasi lewat `config/strategy_params.json`. Model ML akan dilatih otomatis. Untuk manual gunakan `python ml/training.py --symbol BTCUSDT` atau `--symbol all` juga bisa lewat Telegram (`/ml`, `/mltrain`).
 Optimasi strategi kini mencakup semua parameter utama per simbol dan otomatis memperbarui file config setelah proses optimasi selesai.
+Kini UI backtest mendukung Optimasi Parameter per-simbol. Jika parameter belum ada, sistem akan otomatis optimasi sebelum backtest.
 
 ### FAQ
 - **Apakah aman restart?** Ya, data di `runtime_state` dipulihkan otomatis.

@@ -11,6 +11,7 @@ import json
 
 from backtest.engine import run_backtest
 from backtest.metrics import calculate_metrics
+from backtest.optimizer import optimize_strategy
 from ml import training
 from ml.historical_trainer import label_and_save
 
@@ -80,14 +81,48 @@ with kol2:
 if "backtest_running" not in st.session_state:
     st.session_state.backtest_running = False
 
-jalankan = st.button("Run Backtest", disabled=st.session_state.backtest_running)
+col_btn1, col_btn2 = st.columns(2)
+with col_btn1:
+    do_optimize = st.button("🔎 Optimasi Parameter", key="btn_optimize")
+with col_btn2:
+    jalankan = st.button(
+        "🔁 Backtest Pakai Param Optimal",
+        key="btn_backtest",
+        disabled=st.session_state.backtest_running,
+    )
 if st.session_state.backtest_running:
     st.warning("⚠️ Backtest sedang berjalan! Jangan refresh atau tutup halaman!")
-    st.markdown("""
+    st.markdown(
+        """
 <script>
   window.onbeforeunload = function() { return "Backtest sedang berjalan! Jangan refresh!"; };
 </script>
-""", unsafe_allow_html=True)
+""",
+        unsafe_allow_html=True,
+    )
+
+if do_optimize:
+    if not simbol_terpilih:
+        st.warning("Silakan pilih minimal satu simbol.")
+    else:
+        for simbol in simbol_terpilih:
+            with st.spinner(f"Optimasi {simbol}..."):
+                try:
+                    best_param, best_metrik = optimize_strategy(simbol)
+                    STRATEGY_PARAMS[simbol] = best_param or {}
+                    with open(STRAT_PATH, "w") as f:
+                        json.dump(STRATEGY_PARAMS, f, indent=2)
+                    winrate = best_metrik.get("Persentase Menang", 0) if best_metrik else 0
+                    pf = best_metrik.get("Profit Factor", 0) if best_metrik else 0
+                    pesan = f"Optimasi {simbol} selesai. Winrate: {winrate:.2f}% PF: {pf:.2f}"
+                    if winrate < 70 or pf <= 3:
+                        st.warning(pesan)
+                    else:
+                        st.success(pesan)
+                    if best_param:
+                        st.json(best_param)
+                except Exception as e:
+                    st.error(f"Optimasi {simbol} gagal: {e}")
 
 
 def unduh_klines(simbol: str, mulai_ms: int, akhir_ms: int, timeframe: str) -> pd.DataFrame:
@@ -167,6 +202,26 @@ if jalankan:
                 progress.progress(i / len(simbol_terpilih))
         progress.empty()
         for simbol, df in hasil_data.items():
+            params = STRATEGY_PARAMS.get(simbol)
+            if not params:
+                with st.spinner(f"Otomatis optimasi param {simbol}..."):
+                    try:
+                        params, met_opt = optimize_strategy(simbol)
+                        STRATEGY_PARAMS[simbol] = params or {}
+                        with open(STRAT_PATH, "w") as f:
+                            json.dump(STRATEGY_PARAMS, f, indent=2)
+                        winrate = met_opt.get("Persentase Menang", 0) if met_opt else 0
+                        pf = met_opt.get("Profit Factor", 0) if met_opt else 0
+                        pesan = f"Winrate: {winrate:.2f}% PF: {pf:.2f}"
+                        if winrate < 70 or pf <= 3:
+                            st.warning(pesan)
+                        else:
+                            st.success(pesan)
+                        if params:
+                            st.json(params)
+                    except Exception as e:
+                        st.error(f"Optimasi {simbol} gagal: {e}")
+                        continue
             path = f"data/training_data/{simbol}_{tf}.csv"
             try:
                 df_check = pd.read_csv(path, nrows=1)
@@ -196,8 +251,6 @@ if jalankan:
                     continue
             with st.spinner(f"Menjalankan backtest {simbol}"):
                 cfg_sym = STRATEGY_PARAMS.get(simbol, {})
-                if not cfg_sym:
-                    st.warning(f"{simbol} belum memiliki parameter, menggunakan default.")
                 trades, equity, _ = run_backtest(
                     df,
                     symbol=simbol,
@@ -214,21 +267,20 @@ if jalankan:
 
             st.subheader(simbol)
             if metrik:
+                winrate = metrik.get("Persentase Menang", 0)
+                pf = metrik.get("Profit Factor", 0)
+                pesan_bt = f"Winrate: {winrate:.2f}% PF: {pf:.2f}"
+                if winrate < 70 or pf <= 3:
+                    st.warning(pesan_bt)
+                else:
+                    st.success(pesan_bt)
                 cols = st.columns(len(metrik))
                 for (k, v), col in zip(metrik.items(), cols):
-                  if isinstance(v, pd.Timedelta):
-                    v = str(v)
-                  col.metric(k, v)
+                    if isinstance(v, pd.Timedelta):
+                        v = str(v)
+                    col.metric(k, v)
             params = STRATEGY_PARAMS.get(simbol, {})
-            st.info(
-                f"""
-**Parameter Strategi:**
-EMA: {params.get('ema_period', '-')}, SMA: {params.get('sma_period', '-')}, RSI Period: {params.get('rsi_period', '-')}
-MACD F/S/Signal: {params.get('macd_fast', '-')}/{params.get('macd_slow', '-')}/{params.get('macd_signal', '-')}
-Score Th: {params.get('score_threshold', '-')}, Trail Off/Trig: {params.get('trailing_offset_pct', '-')}/{params.get('trailing_trigger_pct', '-')}
-Timeframe: {tf} | Initial Capital: ${initial_capital} | Risk/Trade: {risk_per_trade}% | Leverage: {leverage}x
-"""
-            )
+            st.json(params)
             if kurva is not None:
                 fig = go.Figure()
                 fig.add_trace(
