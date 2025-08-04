@@ -64,7 +64,7 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                 break
 
 
-def start_signal_stream(client, symbols: list[str], strategy_params, timeframe: str):
+def start_signal_stream(client, symbols: list[str], strategy_params, timeframe: str = "5m"):
     """Mulai stream sinyal berdasarkan kline."""
     global ws_manager, client_global, _tasks, async_client
     if not bot_flags.IS_READY or _tasks:

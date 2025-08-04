@@ -3,6 +3,7 @@ import pandas as pd
 from strategies.scalping_strategy import apply_indicators, generate_signals
 from risk_management.position_manager import apply_trailing_sl
 from execution.order_monitor import check_exit_condition
+from risk_management.risk_calculator import calculate_order_qty
 from models.trade import Trade
 
 
@@ -16,6 +17,8 @@ def run_backtest(
     end: str | None = None,
     config: dict | None = None,
     timeframe: str = "5m",
+    risk_per_trade: float = 1.0,
+    leverage: int = 20,
 ):
     """Jalankan backtest bar-per-bar secara modular.
 
@@ -32,6 +35,7 @@ def run_backtest(
     df = apply_indicators(df, config)
 
     capital = initial_capital
+    risk_pct = risk_per_trade / 100
     trades: list[Trade] = []
     active_trade: Trade | None = None
     equity: list[float] = []
@@ -68,7 +72,7 @@ def run_backtest(
                     pnl = (exit_price - active_trade.entry_price) * active_trade.size
                 else:
                     pnl = (active_trade.entry_price - exit_price) * active_trade.size
-                capital += pnl
+                capital += active_trade.margin + pnl
                 active_trade.exit_price = exit_price
                 active_trade.exit_time = time
                 active_trade.pnl = pnl
@@ -80,17 +84,32 @@ def run_backtest(
             allow_long = direction in ("long", "both")
             allow_short = direction in ("short", "both")
             if allow_long and row.get("long_signal"):
-                size = capital * 0.05 / price
                 sl = price * (1 - 0.01)
                 tp = price * (1 + 0.02)
-                active_trade = Trade(symbol, "long", time, price, size, sl, tp, trailing_sl=sl)
+                size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
+                margin = price * size / leverage
+                if size > 0 and margin <= capital:
+                    active_trade = Trade(symbol, "long", time, price, size, sl, tp, trailing_sl=sl)
+                    active_trade.margin = margin
+                    capital -= margin
             elif allow_short and row.get("short_signal"):
-                size = capital * 0.05 / price
                 sl = price * (1 + 0.01)
                 tp = price * (1 - 0.02)
-                active_trade = Trade(symbol, "short", time, price, size, sl, tp, trailing_sl=sl)
+                size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
+                margin = price * size / leverage
+                if size > 0 and margin <= capital:
+                    active_trade = Trade(symbol, "short", time, price, size, sl, tp, trailing_sl=sl)
+                    active_trade.margin = margin
+                    capital -= margin
 
-        equity.append(capital)
+        if active_trade:
+            if active_trade.side == "long":
+                unreal = (price - active_trade.entry_price) * active_trade.size
+            else:
+                unreal = (active_trade.entry_price - price) * active_trade.size
+            equity.append(capital + active_trade.margin + unreal)
+        else:
+            equity.append(capital)
 
     equity_df = pd.DataFrame({"equity": equity}, index=df.index[: len(equity)])
     return trades, equity_df, capital

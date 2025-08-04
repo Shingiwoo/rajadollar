@@ -13,7 +13,11 @@ def load_global_config() -> dict:
             pass
     return DEFAULT_CFG.copy()
 
-def save_global_config(cfg: dict) -> None:
+def save_global_config(cfg: dict) -> bool:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with CONFIG_PATH.open("w") as f:
-        json.dump(cfg, f)
+    try:
+        with CONFIG_PATH.open("w") as f:
+            json.dump(cfg, f)
+        return True
+    except PermissionError:
+        return False

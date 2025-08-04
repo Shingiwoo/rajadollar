@@ -50,6 +50,7 @@ Setelah `.env` terisi, jalankan Streamlit dan pilih `Mode` di sidebar.
 Pilih `testnet` untuk simulasi atau `real` untuk trading sungguhan.
 
 Kini tersedia pilihan timeframe (`1m`, `5m`, `15m`) langsung di UI. Semua proses pengambilan data, training, backtest, hingga trading live otomatis memakai timeframe yang dipilih.
+Semua pengaturan parameter (timeframe, modal awal, risk per trade, leverage) dapat diatur dari UI dan hanya berlaku untuk sesi pengguna. Global config hanya diubah oleh admin.
 
 3. **Jalankan bot Streamlit UI:**
     ```sh

@@ -23,7 +23,7 @@ init_db()
 def build_cfg(api_key, api_secret, client, symbols, strategy_params, auto_sync,
               leverage, risk_pct, max_pos, max_sym, max_slip, loss_limit,
               notif_entry, notif_exit, notif_error, notif_resume, resume_flag,
-              timeframe):
+              timeframe="5m"):
     return {
         "api_key": api_key,
         "api_secret": api_secret,
@@ -87,7 +87,8 @@ cfg_global = load_global_config()
 tf_options = ["1m", "5m", "15m"]
 tf = st.sidebar.selectbox("Pilih Timeframe", tf_options, index=tf_options.index(cfg_global.get("selected_timeframe", "5m")))
 if tf != cfg_global.get("selected_timeframe"):
-    save_global_config({"selected_timeframe": tf})
+    if not save_global_config({"selected_timeframe": tf}):
+        st.sidebar.error("Tidak bisa menyimpan config global")
 
 st.sidebar.subheader("Strategi per Symbol")
 if st.sidebar.checkbox("Edit strategy_params.json (Expert)"):

@@ -7,7 +7,7 @@ import pandas as pd
 import requests
 import streamlit as st
 import plotly.graph_objects as go
-from utils.config_loader import load_global_config, save_global_config
+import json
 
 from backtest.engine import run_backtest
 from backtest.metrics import calculate_metrics
@@ -15,7 +15,40 @@ from ml import training
 from ml.historical_trainer import label_and_save
 
 st.set_page_config(page_title="Backtest Multi-Simbol")
-st.title("🔁 Backtest Multi-Simbol")
+st.title("Backtest Multi-Simbol")
+
+if "tf" not in st.session_state:
+    st.session_state["tf"] = "5m"
+if "initial_capital" not in st.session_state:
+    st.session_state["initial_capital"] = 1000
+if "risk_per_trade" not in st.session_state:
+    st.session_state["risk_per_trade"] = 1.0
+if "leverage" not in st.session_state:
+    st.session_state["leverage"] = 20
+
+with st.form("param_backtest"):
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        tf = st.selectbox("Pilih Timeframe", ["1m", "5m", "15m"],
+                          index=["1m", "5m", "15m"].index(st.session_state["tf"]), key="tf")
+    with col2:
+        initial_capital = st.number_input("Initial Capital ($)", min_value=10, value=st.session_state["initial_capital"], key="initial_capital")
+    with col3:
+        risk_per_trade = st.number_input("Risk per Trade (%)", min_value=0.1, max_value=10.0, value=st.session_state["risk_per_trade"], key="risk_per_trade")
+    with col4:
+        leverage = st.number_input("Leverage", min_value=1, max_value=125, value=st.session_state["leverage"], key="leverage")
+    submit_param = st.form_submit_button("Set Parameter")
+
+if submit_param:
+    st.session_state["tf"] = tf
+    st.session_state["initial_capital"] = initial_capital
+    st.session_state["risk_per_trade"] = risk_per_trade
+    st.session_state["leverage"] = leverage
+
+tf = st.session_state.get("tf", "5m")
+initial_capital = st.session_state.get("initial_capital", 1000)
+risk_per_trade = st.session_state.get("risk_per_trade", 1.0)
+leverage = st.session_state.get("leverage", 20)
 
 SYMBOL_FILE = "config/symbols.txt"
 if os.path.exists(SYMBOL_FILE):
@@ -24,11 +57,12 @@ if os.path.exists(SYMBOL_FILE):
 else:
     SEMUA_SIMBOL = ["XRPUSDT", "DOGEUSDT", "TURBOUSDT"]
 
-cfg = load_global_config()
-tf_options = ["1m", "5m", "15m"]
-tf = st.selectbox("Pilih Timeframe", tf_options, index=tf_options.index(cfg.get("selected_timeframe", "5m")))
-if tf != cfg.get("selected_timeframe"):
-    save_global_config({"selected_timeframe": tf})
+STRAT_PATH = "config/strategy_params.json"
+if os.path.exists(STRAT_PATH):
+    with open(STRAT_PATH) as f:
+        STRATEGY_PARAMS = json.load(f)
+else:
+    STRATEGY_PARAMS = {}
 
 simbol_terpilih = st.multiselect("Pilih Simbol", SEMUA_SIMBOL, default=SEMUA_SIMBOL[:3])
 kol1, kol2 = st.columns(2)
@@ -155,12 +189,17 @@ if jalankan:
                     st.error(f"Training {simbol} gagal: {e}")
                     continue
             with st.spinner(f"Menjalankan backtest {simbol}"):
+                cfg_sym = STRATEGY_PARAMS.get(simbol, {})
                 trades, equity, _ = run_backtest(
                     df,
                     symbol=simbol,
                     start=str(tanggal_mulai),
                     end=str(tanggal_akhir),
                     timeframe=tf,
+                    initial_capital=initial_capital,
+                    config=cfg_sym,
+                    risk_per_trade=risk_per_trade,
+                    leverage=leverage,
                 )
                 metrik, kurva = calculate_metrics(trades, equity)
 
@@ -171,6 +210,15 @@ if jalankan:
                   if isinstance(v, pd.Timedelta):
                     v = str(v)
                   col.metric(k, v)
+            params = STRATEGY_PARAMS.get(simbol, {})
+            ema_p = params.get("ema_period", "-")
+            sma_p = params.get("sma_period", "-")
+            rsi_th = params.get("rsi_threshold", "-")
+            st.info(f"""
+**Parameter Strategi:**  
+EMA: {ema_p}, SMA: {sma_p}, RSI: {rsi_th}  
+Timeframe: {tf} | Initial Capital: ${initial_capital} | Risk/Trade: {risk_per_trade}% | Leverage: {leverage}x
+""")
             if kurva is not None:
                 fig = go.Figure()
                 fig.add_trace(
