@@ -14,6 +14,7 @@ from backtest.metrics import calculate_metrics
 from backtest.optimizer import optimize_strategy
 from ml import training
 from ml.historical_trainer import label_and_save
+from utils.historical_data import MAX_DAYS
 
 st.set_page_config(page_title="Backtest Multi-Simbol")
 st.title("Backtest Multi-Simbol")
@@ -78,6 +79,12 @@ with kol1:
 with kol2:
     tanggal_akhir = st.date_input("Tanggal Akhir", dt.date.today())
 
+if (tanggal_akhir - tanggal_mulai).days > MAX_DAYS.get(tf, 30):
+    st.error(
+        f"Rentang tanggal terlalu panjang untuk TF {tf}. Maksimum {MAX_DAYS.get(tf, 30)} hari."
+    )
+    st.stop()
+
 if "backtest_running" not in st.session_state:
     st.session_state.backtest_running = False
 
@@ -108,7 +115,9 @@ if do_optimize:
         for simbol in simbol_terpilih:
             with st.spinner(f"Optimasi {simbol}..."):
                 try:
-                    best_param, best_metrik = optimize_strategy(simbol)
+                    best_param, best_metrik = optimize_strategy(
+                        simbol, tf, str(tanggal_mulai), str(tanggal_akhir)
+                    )
                     STRATEGY_PARAMS[simbol] = best_param or {}
                     with open(STRAT_PATH, "w") as f:
                         json.dump(STRATEGY_PARAMS, f, indent=2)
@@ -206,7 +215,9 @@ if jalankan:
             if not params:
                 with st.spinner(f"Otomatis optimasi param {simbol}..."):
                     try:
-                        params, met_opt = optimize_strategy(simbol)
+                        params, met_opt = optimize_strategy(
+                            simbol, tf, str(tanggal_mulai), str(tanggal_akhir)
+                        )
                         STRATEGY_PARAMS[simbol] = params or {}
                         with open(STRAT_PATH, "w") as f:
                             json.dump(STRATEGY_PARAMS, f, indent=2)

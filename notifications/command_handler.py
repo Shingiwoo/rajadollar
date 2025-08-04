@@ -8,6 +8,7 @@ import pandas as pd
 from ml.training import train_model, MIN_DATA, FEATURE_COLS
 from ml import historical_trainer
 from utils.config_loader import load_global_config
+from utils.historical_data import MAX_DAYS
 import matplotlib.pyplot as plt
 from database.sqlite_logger import get_all_trades, export_trades_csv
 from notifications.notifier import kirim_notifikasi_telegram
@@ -66,7 +67,9 @@ def _train_symbol(symbol: str, timeframe: str | None = None) -> float:
         except Exception as e:
             logging.error(f"Training model {symbol} gagal: {e}")
             return 0.0
-    result = historical_trainer.train_from_history(symbol, tf)
+    end = pd.Timestamp.utcnow().date().isoformat()
+    start = (pd.Timestamp.utcnow() - pd.Timedelta(days=MAX_DAYS.get(tf, 30))).date().isoformat()
+    result = historical_trainer.train_from_history(symbol, tf, start, end)
     return result.get("train_accuracy", 0.0) if result else 0.0
 
 

@@ -66,6 +66,18 @@ Selama backtest berjalan, akan muncul peringatan agar tidak me-refresh halaman s
     pytest tests/
     ```
 
+### Persiapan Data Historical
+
+Pastikan folder penyimpanan data historis tersedia dan dapat ditulis:
+
+```bash
+sudo mkdir -p data/historical_data/5m
+sudo chown -R 1000:1000 data/historical_data
+sudo chmod -R u+w data/historical_data
+```
+
+Optimasi dan training akan otomatis memakai data yang sudah ada, melakukan konversi timeframe jika memungkinkan, dan hanya mengunduh baru bila diperlukan.
+
 ---
 
 ## 🔧 **Fitur Utama**

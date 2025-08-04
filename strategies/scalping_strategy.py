@@ -8,6 +8,7 @@ import os
 import logging
 
 from utils.config_loader import load_global_config
+from utils.historical_data import MAX_DAYS
 
 MODEL_PATH = "models/model_scalping.pkl"
 _ml_models: dict[str, ClassifierMixin | None] = {}
@@ -44,7 +45,11 @@ def load_ml_model(symbol: str, path: str | None = None, timeframe: str | None = 
         logging.info(f"Auto-training model untuk {symbol}...")
         try:
             from ml import historical_trainer
-            historical_trainer.train_from_history(symbol)
+            end = pd.Timestamp.utcnow().date().isoformat()
+            start = (
+                pd.Timestamp.utcnow() - pd.Timedelta(days=MAX_DAYS.get(tf, 30))
+            ).date().isoformat()
+            historical_trainer.train_from_history(symbol, tf, start, end)
         except Exception as e:  # pragma: no cover - training bisa gagal
             logging.error(f"Auto-training gagal: {e}")
         _auto_trained.add(symbol)

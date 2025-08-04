@@ -143,7 +143,7 @@ def test_labeling_and_cutoff(tmp_path, monkeypatch):
     os.makedirs("data/training_data", exist_ok=True)
     os.makedirs("models", exist_ok=True)
 
-    def dummy_fetch(symbol, days=30):
+    def dummy_fetch(symbol, tf, start, end):
         start_old = pd.Timestamp.utcnow().tz_localize(None) - pd.Timedelta(days=10)
         start_new = pd.Timestamp.utcnow().tz_localize(None) - pd.Timedelta(days=1)
         old = pd.date_range(start_old, periods=40, freq="min")
@@ -159,18 +159,20 @@ def test_labeling_and_cutoff(tmp_path, monkeypatch):
                 high.append(100.0)
             low.append(99.0)
         df = pd.DataFrame({
-            "time": times,
             "open": close,
             "high": high,
             "low": low,
             "close": close,
             "volume": [10] * len(times),
-        })
+        }, index=times)
+        df.index.name = "timestamp"
         return df
 
-    monkeypatch.setattr(historical_trainer, "_fetch_historical_klines", dummy_fetch)
+    monkeypatch.setattr(historical_trainer, "load_historical_data", dummy_fetch)
     monkeypatch.setattr(historical_trainer, "accuracy_score", lambda y, p: 1.0)
-    info = historical_trainer.train_from_history("BTCUSDT", "5m")
+    end = pd.Timestamp.utcnow().date().isoformat()
+    start = (pd.Timestamp.utcnow() - pd.Timedelta(days=5)).date().isoformat()
+    info = historical_trainer.train_from_history("BTCUSDT", "5m", start, end)
     assert info and info["train_accuracy"] > 0
     assert info["model"] and os.path.exists(info["model"])
     csv_path = Path("data/training_data/BTCUSDT_5m.csv")
@@ -178,7 +180,9 @@ def test_labeling_and_cutoff(tmp_path, monkeypatch):
     df_saved = pd.read_csv(csv_path)
     cutoff = pd.Timestamp.utcnow().tz_localize(None) - pd.Timedelta(days=7)
     assert (pd.to_datetime(df_saved["time"]) >= cutoff).any()
-    df_labeled = historical_trainer._label_data(historical_trainer._apply_indicators(dummy_fetch("BTCUSDT")))
+    df_labeled = historical_trainer._label_data(
+        historical_trainer._apply_indicators(dummy_fetch("BTCUSDT", "5m", start, end))
+    )
     labels = df_labeled["label"].dropna().unique().tolist()
     assert 1 in labels and 0 in labels
 
@@ -270,13 +274,15 @@ def test_streamlit_train_button(tmp_path, monkeypatch):
 
     monkeypatch.setattr(main, "training", SimpleNamespace(train_model=fake_train, MIN_DATA=0))
 
-    def fake_hist(sym, tf):
+    def fake_hist(sym, tf, start, end):
         path = os.path.join("models", f"{sym}_scalping_{tf}.pkl")
         with open(path, "wb") as f:
             f.write(b"1")
         return {"train_accuracy": 0.7, "model": path}
 
-    monkeypatch.setattr(main, "historical_trainer", SimpleNamespace(train_from_history=fake_hist))
+    monkeypatch.setattr(
+        main, "historical_trainer", SimpleNamespace(train_from_history=fake_hist)
+    )
     main.train_selected_symbols(["BTCUSDT", "ETHUSDT"])
     assert msgs.get("success")
     assert os.path.exists("models/BTCUSDT_scalping_5m.pkl")

@@ -12,6 +12,7 @@ import utils.bot_flags as bot_flags
 from database.sqlite_logger import init_db
 from ml import training, historical_trainer
 from utils.config_loader import load_global_config, save_global_config
+from utils.historical_data import MAX_DAYS
 
 # === SETUP ===
 nest_asyncio.apply()
@@ -215,7 +216,11 @@ def train_selected_symbols(symbols):
             if use_existing:
                 acc = training.train_model(sym, tf)
             else:
-                res = historical_trainer.train_from_history(sym, tf)
+                end = pd.Timestamp.utcnow().date().isoformat()
+                start = (
+                    pd.Timestamp.utcnow() - pd.Timedelta(days=MAX_DAYS.get(tf, 30))
+                ).date().isoformat()
+                res = historical_trainer.train_from_history(sym, tf, start, end)
                 acc = res.get("train_accuracy", 0.0) if res else 0.0
             results[sym] = acc
             status.update(label=f"{sym} selesai: {acc:.2%}")

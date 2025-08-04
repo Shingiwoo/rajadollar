@@ -7,9 +7,9 @@ import logging
 import os
 import random
 
-from backtest.data_loader import load_csv
 from backtest.engine import run_backtest
 from backtest.metrics import calculate_metrics
+from utils.historical_data import load_historical_data
 
 
 GRID: dict[str, list] = {
@@ -32,9 +32,10 @@ def _sample_params() -> dict:
 
 def optimize_strategy(
     symbol: str,
+    tf: str,
+    start: str,
+    end: str,
     n_iter: int = 200,
-    start: str | None = None,
-    end: str | None = None,
     initial_capital: float = 1000,
 ):
     """Cari kombinasi parameter terbaik dan simpan ke strategy_params.json.
@@ -43,8 +44,7 @@ def optimize_strategy(
     Target minimum: winrate >= 70% dan Profit Factor > 3.
     """
 
-    filepath = f"data/historical_data/1h/{symbol}_1h.csv"
-    df = load_csv(filepath, start=start, end=end)
+    df = load_historical_data(symbol, tf, start, end)
 
     terbaik_params: dict | None = None
     terbaik_metrik: dict | None = None
@@ -59,6 +59,9 @@ def optimize_strategy(
             initial_capital=initial_capital,
             config=params,
             score_threshold=params["score_threshold"],
+            timeframe=tf,
+            start=start,
+            end=end,
         )
 
         hasil = calculate_metrics(trades, equity)
