@@ -251,16 +251,28 @@ def generate_signals(df, score_threshold=1.8, symbol: str = "", config=None):
         elif not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
             reason = "Menunggu konfirmasi indikator"
 
+    long_raw = df['long_signal'].copy()
+    short_raw = df['short_signal'].copy()
+    long_raw_last = bool(long_raw.iloc[-1])
+    short_raw_last = bool(short_raw.iloc[-1])
+
     # Konfirmasi timeframe lebih besar
     long_ok, short_ok = confirm_by_higher_tf(df, config)
-    df['swing_long'] = df['long_signal'] & long_ok
-    df['swing_short'] = df['short_signal'] & short_ok
+    df['swing_long'] = long_raw & long_ok
+    df['swing_short'] = short_raw & short_ok
+    if config.get('only_trend_15m', True):
+        if (long_raw_last and not long_ok) or (short_raw_last and not short_ok):
+            reason = "Tidak searah trend 15m"
+        df['long_signal'] = long_raw & long_ok
+        df['short_signal'] = short_raw & short_ok
     mode = 'swing' if df['swing_long'].iloc[-1] or df['swing_short'].iloc[-1] else 'scalp'
     df.loc[df.index[-1], 'signal_mode'] = mode
 
     if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
         if not reason:
-            if not cond_long1.iloc[-1] and not cond_short1.iloc[-1]:
+            if config.get('only_trend_15m', True) and (long_raw_last or short_raw_last) and (not long_ok or not short_ok):
+                reason = "Tidak searah trend 15m"
+            elif not cond_long1.iloc[-1] and not cond_short1.iloc[-1]:
                 reason = "MA not aligned"
             else:
                 reason = "Score below threshold"

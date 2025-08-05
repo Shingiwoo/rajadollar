@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import pytest
 from strategies.scalping_strategy import apply_indicators, generate_signals
+import strategies.scalping_strategy as strat
 
 @pytest.fixture
 def dummy_df():
@@ -52,3 +53,22 @@ def test_no_entry_logs(dummy_df, config, caplog):
     with caplog.at_level('INFO'):
         df = generate_signals(df, config['score_threshold'], config=config)
     assert any('Skor long' in r.message for r in caplog.records)
+
+
+def test_filter_trend_15m(monkeypatch, dummy_df, config):
+    config['only_trend_15m'] = True
+    df = apply_indicators(dummy_df.copy(), config)
+
+    def fake_confirm(df, config=None):
+        return False, True
+
+    monkeypatch.setattr(strat, 'confirm_by_higher_tf', fake_confirm)
+    df = generate_signals(df, 0.0, config=config)
+    assert not df['long_signal'].iloc[-1]
+    assert df['short_signal'].iloc[-1]
+
+    config['only_trend_15m'] = False
+    df = apply_indicators(dummy_df.copy(), config)
+    monkeypatch.setattr(strat, 'confirm_by_higher_tf', fake_confirm)
+    df = generate_signals(df, 0.0, config=config)
+    assert df['long_signal'].iloc[-1]
