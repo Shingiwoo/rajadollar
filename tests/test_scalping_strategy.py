@@ -31,7 +31,7 @@ def test_apply_indicators(dummy_df, config):
         'ema', 'sma', 'macd', 'macd_signal',
         'rsi', 'bb_upper', 'bb_lower', 'bb_width', 'atr'
     ])
-    assert not df[['ema', 'sma', 'macd', 'rsi']].isnull().all().any()
+    assert not df[['ema', 'sma', 'macd', 'rsi', 'atr']].isnull().all().any()
 
 def test_generate_signals(dummy_df, config):
     df = apply_indicators(dummy_df.copy(), config)

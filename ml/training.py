@@ -9,7 +9,11 @@ from typing import List
 
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import (
+    StratifiedKFold,
+    cross_val_score,
+    train_test_split,
+)
 from sklearn.metrics import accuracy_score
 import schedule
 import threading
@@ -21,7 +25,7 @@ from utils.config_loader import load_global_config
 
 DATA_DIR = Path("data/training_data")
 MODEL_DIR = Path("models")
-FEATURE_COLS = ["ema", "sma", "macd", "rsi"]
+FEATURE_COLS = ["ema", "sma", "macd", "rsi", "atr", "bb_width", "volume"]
 MIN_DATA = 100
 MIN_ACCURACY = 0.6
 
@@ -107,15 +111,13 @@ def train_model(symbol: str, timeframe: str | None = None) -> float:
 
     X = df[FEATURE_COLS]
     y = df["label"]
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
     model = RandomForestClassifier(n_estimators=100, random_state=42)
+    scores: list[float] = []
     try:
-        model.fit(X_tr, y_tr)
-        preds = model.predict(X_te)
-        preds = preds.astype(int)
-        assert set(y_te.unique()).issubset({0, 1})
-        assert set(preds).issubset({0, 1})
-        acc = accuracy_score(y_te, preds)
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        scores = cross_val_score(model, X, y, cv=cv, scoring="accuracy")
+        acc = float(scores.mean())
+        model.fit(X, y)
     except Exception as e:
         logging.error(f"[ML] Training model {symbol} error: {e}")
         msg = f"⚠️ *ML Training Gagal* {symbol}\n• Error: `{e}`"
@@ -154,7 +156,16 @@ def train_model(symbol: str, timeframe: str | None = None) -> float:
             f"ml_training_{symbol}_{tf}_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
         )
         with log_path.open("w") as f:
-            json.dump({"timestamp": now, "accuracy": float(acc), "data": valid}, f, indent=2)
+            json.dump(
+                {
+                    "timestamp": now,
+                    "accuracy": float(acc),
+                    "cv_scores": [float(s) for s in scores],
+                    "data": valid,
+                },
+                f,
+                indent=2,
+            )
 
     print(f"[ML] {symbol} selesai dengan akurasi {acc:.2%}")
     return float(acc)
@@ -172,13 +183,64 @@ def train_all(symbols: List[str] | None = None, timeframe: str | None = None) ->
         train_model(sym, tf)
 
 
-def run_training_scheduler(symbols: List[str] | None = None) -> None:
-    def train_job():
-        print("[SCHEDULE] Melatih model otomatis...")
-        train_all(symbols, timeframe)
-        print("[SCHEDULE] ✅ Model berhasil diperbarui (mingguan)")
+def evaluate_model(symbol: str, timeframe: str | None = None) -> float:
+    """Evaluasi model yang sudah tersimpan terhadap data terbaru."""
+    tf = _get_tf(timeframe)
+    model_path = Path(MODEL_DIR) / f"{symbol}_scalping_{tf}.pkl"
+    if not model_path.exists():
+        return 0.0
+    df = _load_dataset(symbol, tf)
+    if df is None:
+        return 0.0
+    X = df[FEATURE_COLS]
+    y = df["label"]
+    try:
+        _, X_te, _, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
+        with model_path.open("rb") as f:
+            model = pickle.load(f)
+        preds = model.predict(X_te)
+        preds = preds.astype(int)
+        acc = accuracy_score(y_te, preds)
+    except Exception as e:
+        logging.error(f"[ML] Evaluasi model {symbol} error: {e}")
+        return 0.0
 
-    schedule.every().monday.at("06:00").do(train_job)
+    now = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
+    log_dir = Path(LOG_DIR)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    if os.access(log_dir, os.W_OK):
+        log_path = log_dir / (
+            f"ml_eval_{symbol}_{tf}_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
+        )
+        with log_path.open("w") as f:
+            json.dump({"timestamp": now, "accuracy": float(acc)}, f, indent=2)
+
+    return float(acc)
+
+
+def monitor_models(symbols: List[str] | None = None, timeframe: str | None = None) -> None:
+    """Pantau akurasi model dan retrain jika menurun."""
+    tf = _get_tf(timeframe)
+    if symbols is None:
+        data_dir = Path(DATA_DIR)
+        if not data_dir.is_dir():
+            return
+        files = list(data_dir.glob(f"*_{tf}.csv"))
+        symbols = [p.stem.split("_")[0] for p in files]
+    for sym in symbols:
+        acc = evaluate_model(sym, tf)
+        if acc < MIN_ACCURACY:
+            logging.info("[ML] Akurasi %s %.2f%% di bawah ambang, retrain", sym, acc * 100)
+            train_model(sym, tf)
+
+
+def run_training_scheduler(symbols: List[str] | None = None, timeframe: str | None = None) -> None:
+    def monitor_job():
+        print("[SCHEDULE] Memantau model otomatis...")
+        monitor_models(symbols, timeframe)
+        print("[SCHEDULE] ✅ Monitoring selesai")
+
+    schedule.every().day.at("06:00").do(monitor_job)
 
     def loop():
         while True:

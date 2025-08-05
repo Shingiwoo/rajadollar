@@ -9,6 +9,7 @@ import argparse
 import pandas as pd
 from ta.trend import EMAIndicator, SMAIndicator, MACD
 from ta.momentum import RSIIndicator
+from ta.volatility import AverageTrueRange, BollingerBands
 from sklearn.metrics import accuracy_score
 
 from ml import training
@@ -17,11 +18,17 @@ from utils.config_loader import load_global_config
 from utils.historical_data import load_historical_data, MAX_DAYS
 def _apply_indicators(df: pd.DataFrame) -> pd.DataFrame:
     close = pd.to_numeric(df["close"], errors="coerce")
+    high = pd.to_numeric(df["high"], errors="coerce")
+    low = pd.to_numeric(df["low"], errors="coerce")
     df["ema"] = EMAIndicator(close, window=14).ema_indicator()
     df["sma"] = SMAIndicator(close, window=14).sma_indicator()
     macd = MACD(close)
     df["macd"] = macd.macd()
     df["rsi"] = RSIIndicator(close, window=14).rsi()
+    atr = AverageTrueRange(high, low, close, window=14).average_true_range()
+    df["atr"] = atr
+    bb = BollingerBands(close, window=20, window_dev=2)
+    df["bb_width"] = (bb.bollinger_hband() - bb.bollinger_lband()) / close
     logging.info("[ML] Indikator dihitung")
     return df
 
@@ -76,7 +83,9 @@ def label_and_save(
 
     df = _apply_indicators(df)
     df = _label_data(df)
-    df = df.dropna(subset=["ema", "sma", "macd", "rsi", "label"])
+    df = df.dropna(
+        subset=["ema", "sma", "macd", "rsi", "atr", "bb_width", "volume", "label"]
+    )
     df = df[df["label"].isin([0, 1])]
     if df.empty:
         logging.error("[ML] Labeling %s menghasilkan data kosong", symbol)
@@ -104,8 +113,10 @@ def _prepare_training_data(
     df = df.dropna(subset=["time"] + num_cols)
 
     df = _apply_indicators(df)
-    df = _label_data(df)    
-    df = df.dropna(subset=["ema", "sma", "macd", "rsi", "label"])
+    df = _label_data(df)
+    df = df.dropna(
+        subset=["ema", "sma", "macd", "rsi", "atr", "bb_width", "volume", "label"]
+    )
     df = df[df["label"].isin([0, 1])]
     df["label"] = df["label"].astype(int)
     if len(df) < 10:
@@ -157,7 +168,9 @@ def train_from_history(
     if model_path.exists() and not eval_df.empty:
         with model_path.open("rb") as f:
             model = pickle.load(f)
-        preds = model.predict(eval_df[["ema", "sma", "macd", "rsi"]])
+        preds = model.predict(
+            eval_df[["ema", "sma", "macd", "rsi", "atr", "bb_width", "volume"]]
+        )
         preds = preds.astype(int)
         assert set(eval_df["label"].unique()).issubset({0, 1})
         assert set(preds).issubset({0, 1})

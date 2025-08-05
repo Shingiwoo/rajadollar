@@ -7,6 +7,7 @@ from typing import Dict, Deque, Any
 import pandas as pd
 from ta.trend import EMAIndicator, SMAIndicator, MACD
 from ta.momentum import RSIIndicator
+from ta.volatility import AverageTrueRange, BollingerBands
 
 
 class MLLogger:
@@ -28,10 +29,23 @@ class MLLogger:
         df = self._update_buffer(symbol, bar)
 
         close_series = pd.to_numeric(df["close"], errors="coerce")
+        high_series = pd.to_numeric(df["high"], errors="coerce")
+        low_series = pd.to_numeric(df["low"], errors="coerce")
         ema = EMAIndicator(close_series, window=14).ema_indicator()
         sma = SMAIndicator(close_series, window=14).sma_indicator()
         macd = MACD(close_series).macd()
         rsi = RSIIndicator(close_series, window=14).rsi()
+        if len(df) >= 14:
+            atr = AverageTrueRange(
+                high_series, low_series, close_series, window=14
+            ).average_true_range()
+        else:
+            atr = pd.Series([pd.NA] * len(df))
+        if len(df) >= 20:
+            bb = BollingerBands(close_series, window=20, window_dev=2)
+            bb_width = (bb.bollinger_hband() - bb.bollinger_lband()) / close_series
+        else:
+            bb_width = pd.Series([pd.NA] * len(df))
 
         row = {
             "timestamp": bar.get("timestamp"),
@@ -44,6 +58,8 @@ class MLLogger:
             "sma": float(sma.iloc[-1]) if not pd.isna(sma.iloc[-1]) else None,
             "macd": float(macd.iloc[-1]) if not pd.isna(macd.iloc[-1]) else None,
             "rsi": float(rsi.iloc[-1]) if not pd.isna(rsi.iloc[-1]) else None,
+            "atr": float(atr.iloc[-1]) if not pd.isna(atr.iloc[-1]) else None,
+            "bb_width": float(bb_width.iloc[-1]) if not pd.isna(bb_width.iloc[-1]) else None,
         }
 
         csv_path = self.data_path / f"{symbol.upper()}.csv"
