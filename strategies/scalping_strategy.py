@@ -121,6 +121,48 @@ def apply_indicators(df, config=None, bb_std=2):
     return df
 
 
+def confirm_by_higher_tf(df, config=None):
+    """Konfirmasi sinyal memakai timeframe lebih besar (15m).
+
+    Jika indeks bukan datetime atau interval bukan 5 menit,
+    fungsi mengembalikan konfirmasi True agar tidak menghambat proses.
+    """
+    if config is None:
+        config = {}
+    if not isinstance(df.index, pd.DatetimeIndex) or len(df) < 3:
+        return True, True
+
+    try:
+        delta = (df.index[-1] - df.index[-2]).total_seconds() / 60
+    except Exception:
+        return True, True
+    if delta > 10:  # bukan data 5m
+        return True, True
+
+    ohlc = {
+        'open': 'first',
+        'high': 'max',
+        'low': 'min',
+        'close': 'last',
+    }
+    df15 = df.resample('15T').agg(ohlc).dropna()
+    if df15.empty:
+        return True, True
+    df15 = apply_indicators(df15, config)
+    rsi_th = config.get('rsi_threshold', 40)
+    long_ok = (
+        (df15['ema'] > df15['sma'])
+        & (df15['macd'] > df15['macd_signal'])
+        & (df15['rsi'] > rsi_th)
+    ).iloc[-1]
+    short_ok = (
+        (df15['ema'] < df15['sma'])
+        & (df15['macd'] < df15['macd_signal'])
+        & (df15['rsi'] < rsi_th)
+    ).iloc[-1]
+    return bool(long_ok), bool(short_ok)
+
+
 def generate_signals(df, score_threshold=1.4, symbol: str = "", config=None):
     if config is None:
         config = {}
@@ -160,6 +202,13 @@ def generate_signals(df, score_threshold=1.4, symbol: str = "", config=None):
     )
     df['score_short'] = score_short
     df['short_signal'] = score_short >= score_threshold
+
+    # Konfirmasi timeframe lebih besar
+    long_ok, short_ok = confirm_by_higher_tf(df, config)
+    df['swing_long'] = df['long_signal'] & long_ok
+    df['swing_short'] = df['short_signal'] & short_ok
+    mode = 'swing' if df['swing_long'].iloc[-1] or df['swing_short'].iloc[-1] else 'scalp'
+    df.loc[df.index[-1], 'signal_mode'] = mode
 
     reason = ""
     if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
