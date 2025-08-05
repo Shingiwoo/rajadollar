@@ -3,9 +3,10 @@ import time
 import pandas as pd
 from database.sqlite_logger import (
     get_all_trades,
-    init_db,
+    init_db as init_trade_db,
     get_trades_filtered,
 )
+from database.signal_logger import get_signals_today, init_db as init_signal_db
 from utils.state_manager import load_state
 
 def auto_refresh(interval: int = 10):
@@ -18,19 +19,27 @@ def auto_refresh(interval: int = 10):
 st.set_page_config(page_title="📊 Trade Dashboard", layout="wide")
 st.title("📈 Dashboard Trading")
 
-init_db()
+init_trade_db()
+init_signal_db()
 
 interval = st.sidebar.number_input("Refresh tiap (detik)", 5, 60, 10)
 auto_refresh(interval)
 
 df_all = get_all_trades()
 open_pos = load_state()
+signals = get_signals_today()
 
 st.subheader("📌 Posisi Terbuka")
 if open_pos:
     st.dataframe(pd.DataFrame(open_pos))
 else:
     st.info("Tidak ada posisi aktif.")
+
+st.subheader("📑 Sinyal Hari Ini")
+if signals.empty:
+    st.info("Belum ada sinyal.")
+else:
+    st.dataframe(signals)
 
 st.subheader("📊 Histori Trading")
 if df_all.empty:
