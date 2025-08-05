@@ -35,13 +35,13 @@ def test_ws_dummy(monkeypatch):
         monkeypatch.setattr(wsl.AsyncClient, "create", dummy_create)
         monkeypatch.setattr(wsl, "fetch_latest_data", lambda *a, **k: __import__('pandas').DataFrame({'close':[1]}))
         monkeypatch.setattr(wsl, "apply_indicators", lambda df, params: df)
-        monkeypatch.setattr(wsl, "generate_signals", lambda df, thr: df)
+        monkeypatch.setattr(wsl, "generate_signals", lambda df, thr, symbol=None, config=None: df)
 
         called = {}
         wsl.register_signal_handler("BTCUSDT", lambda s, row: called.setdefault('s', s))
 
         dummy_client = type("C", (), {"API_KEY": "a", "API_SECRET": "b", "testnet": True})()
-        wsl.start_signal_stream(dummy_client, ["BTCUSDT"], {"BTCUSDT": {"score_threshold": 0}})
+        wsl.start_signal_stream(dummy_client, ["BTCUSDT"], {"BTCUSDT": {"score_threshold": 0, "hybrid_fallback": False}})
         await asyncio.sleep(0.05)
         wsl.stop_signal_stream()
         assert called.get('s') == 'BTCUSDT'

@@ -116,6 +116,9 @@ risk_pct = st.sidebar.number_input("Risk per Trade (%)", 0.01, 1.0, 0.02)
 max_pos = st.sidebar.slider("Max Posisi", 1, 8, 4)
 max_sym = st.sidebar.slider("Max Symbols Concurrent", 1, 4, 2)
 max_slip = st.sidebar.number_input("Max Slippage (%)", 0.1, 1.0, 0.5)
+score_threshold = st.sidebar.number_input("Ambang Skor", 0.0, 3.0, 1.8, 0.1)
+ml_conf_threshold = st.sidebar.slider("Ambang Kepercayaan ML", 0.0, 1.0, 0.7, 0.05)
+hybrid_fallback = st.sidebar.checkbox("Hybrid Fallback", True)
 loss_limit = st.sidebar.number_input("Batas Loss Harian (USDT)", -1000.0, 0.0, -50.0, step=10.0)
 resume_flag = st.sidebar.checkbox("Resume Otomatis", True)
 notif_entry = st.sidebar.checkbox("Notifikasi Entry", True)
@@ -155,6 +158,11 @@ if start_clicked and not st.session_state.bot_running:
     if not api_key or not api_secret:
         st.error("❌ API key kosong.")
     else:
+        for sym in multi_symbols:
+            strategy_params.setdefault(sym, {})
+            strategy_params[sym]["score_threshold"] = score_threshold
+            strategy_params[sym]["ml_conf_threshold"] = ml_conf_threshold
+            strategy_params[sym]["hybrid_fallback"] = hybrid_fallback
         cfg = build_cfg(
             api_key,
             api_secret,
