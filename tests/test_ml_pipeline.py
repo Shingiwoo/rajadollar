@@ -216,9 +216,11 @@ def test_generate_ml_signal(monkeypatch):
     monkeypatch.setattr(ss, "load_ml_model", lambda s: Dummy())
     out = ss.generate_ml_signal(df.copy(), "BTCUSDT")
     assert out["ml_signal"].iloc[-1] == 0
+    assert out["ml_confidence"].iloc[-1] == 0.5
     monkeypatch.setattr(ss, "load_ml_model", lambda s: None)
     out = ss.generate_ml_signal(df.copy(), "BTCUSDT")
     assert out["ml_signal"].iloc[-1] == 1
+    assert out["ml_confidence"].iloc[-1] == 0.0
 
 
 def test_load_ml_model_cache(tmp_path, monkeypatch):
