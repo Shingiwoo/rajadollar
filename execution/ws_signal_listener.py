@@ -69,7 +69,12 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                 if msg["k"]["x"]:
                     df = fetch_latest_data(symbol, client_global, interval=timeframe, limit=100)
                     df = apply_indicators(df, strategy_params[symbol])
-                    df = generate_signals(df, strategy_params[symbol]["score_threshold"])
+                    df = generate_signals(
+                        df,
+                        strategy_params[symbol]["score_threshold"],
+                        symbol,
+                        strategy_params[symbol],
+                    )
                     long_ok, short_ok = _higher_tf_trend(symbol, strategy_params[symbol])
                     last = df.iloc[-1]
                     last_long = bool(last.get("long_signal")) and long_ok

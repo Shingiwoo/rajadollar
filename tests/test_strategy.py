@@ -20,12 +20,13 @@ def test_generate_signals_long_short():
         'macd_fast': 12,
         'macd_slow': 26,
         'macd_signal': 9,
-        'score_threshold': 2.0
+        'score_threshold': 2.0,
+        'hybrid_fallback': False
     }
     
     df = apply_indicators(df, config)
     df['ml_signal'] = [1] * len(df)
-    df = generate_signals(df, config['score_threshold'])
+    df = generate_signals(df, config['score_threshold'], config=config)
 
     assert 'long_signal' in df.columns
     assert 'short_signal' in df.columns

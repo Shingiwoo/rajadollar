@@ -299,7 +299,7 @@ if jalankan:
                     timeframe=tf,
                     initial_capital=initial_capital,
                     config=cfg_sym,
-                    score_threshold=cfg_sym.get("score_threshold", 1.4),
+                    score_threshold=cfg_sym.get("score_threshold", 1.8),
                     risk_per_trade=risk_per_trade,
                     leverage=leverage,
                 )
