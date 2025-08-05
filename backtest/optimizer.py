@@ -55,13 +55,13 @@ def optimize_strategy(
     """Cari kombinasi parameter terbaik dan simpan ke strategy_params.json.
 
     Prioritas seleksi berdasarkan winrate kemudian Profit Factor.
-    Target minimum: winrate >= 70% dan Profit Factor > 3.
+    Target minimum: winrate >= 75% dan Profit Factor > 3.
     """
 
-    n_iter = n_iter or int(os.getenv("N_ITER", 200))
+    n_iter = n_iter or int(os.getenv("N_ITER", 30))
     n_jobs = n_jobs or int(os.getenv("N_JOBS", 2))
     n_jobs = max(1, min(n_jobs, 2))
-    max_bars = max_bars or int(os.getenv("MAX_BARS", 2000))
+    max_bars = max_bars or int(os.getenv("MAX_BARS", 1000))
 
     df = load_historical_data(symbol, tf, start, end)
     if len(df) > max_bars:
@@ -109,7 +109,7 @@ def optimize_strategy(
             if overall_params is None or winrate > overall_metrik.get("Persentase Menang", 0.0):
                 overall_params, overall_metrik = params, metrik
 
-            if winrate < 70.0 or pf <= 3:
+            if winrate < 75.0 or pf <= 3:
                 continue
 
             if terbaik_params is None:
@@ -120,11 +120,11 @@ def optimize_strategy(
                 if winrate > best_wr or (winrate == best_wr and pf > best_pf):
                     terbaik_params, terbaik_metrik = params, metrik
 
-            if early_stop and winrate >= 70.0 and pf > 3:
+            if early_stop and winrate >= 75.0 and pf > 3:
                 break
 
     if terbaik_params is None:
-        logging.warning("Tidak ada kombinasi memenuhi winrate >=70% dan PF>3")
+        logging.warning("Tidak ada kombinasi memenuhi winrate >=75% dan PF>3")
         return overall_params, overall_metrik
 
     terbaik_params["trailing_enabled"] = True

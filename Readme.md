@@ -93,7 +93,7 @@ Optimasi dan training akan otomatis memakai data yang sudah ada, melakukan konve
 - Slippage checker & minNotional/step checker
 - Rate limit API
 - Bisa running di testnet/realnet Binance
-- Optimasi parameter paralel ringan (default 2 worker, limit data 2000 bar, mode cepat opsional) dengan progress bar serta penyesuaian `n_iter`, `n_jobs`, dan `max_bars`
+- Optimasi parameter paralel ringan (default 2 worker, data maks 1000 bar, `n_iter` 30, pencarian acak dengan early stop opsional) dengan progress bar serta penyesuaian `n_iter`, `n_jobs`, dan `max_bars`
 
 ---
 
