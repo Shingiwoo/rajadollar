@@ -72,7 +72,9 @@ def generate_ml_signal(df, symbol: str = ""):
         df.loc[df.index[-1], 'ml_signal'] = 1
         return df
 
-    features = df[['ema', 'sma', 'macd', 'rsi']].ffill().iloc[-1:]
+    features = df[
+        ['ema', 'sma', 'macd', 'rsi', 'atr', 'bb_width', 'volume']
+    ].ffill().iloc[-1:]
     if features.isnull().values.any():
         logging.warning("Fitur ML mengandung NaN, default ml_signal = 1")
         pred = 1

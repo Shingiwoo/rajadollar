@@ -46,6 +46,8 @@ def test_ml_logger_log_bar(tmp_path):
         "sma",
         "macd",
         "rsi",
+        "atr",
+        "bb_width",
     ]
     assert len(df) == 152
 
@@ -68,6 +70,9 @@ def make_dataset(path, rows):
         "sma": range(rows),
         "macd": range(rows),
         "rsi": [i % 100 for i in range(rows)],
+        "atr": range(rows),
+        "bb_width": [0.1] * rows,
+        "volume": range(rows),
         "label": [1 if i >= rows / 2 else 0 for i in range(rows)],
     })
     df.to_csv(path, index=False)
@@ -100,6 +105,9 @@ def test_train_model_auto_label(tmp_path, monkeypatch):
         "sma": range(30),
         "macd": range(30),
         "rsi": range(30),
+        "atr": range(30),
+        "bb_width": [0.1] * 30,
+        "volume": range(30),
     }).to_csv(csv_path, index=False)
     called = {}
 
@@ -109,6 +117,9 @@ def test_train_model_auto_label(tmp_path, monkeypatch):
             "sma": [0] * 15 + [1] * 15,
             "macd": [0] * 15 + [1] * 15,
             "rsi": [0] * 15 + [1] * 15,
+            "atr": [0] * 30,
+            "bb_width": [0.1] * 30,
+            "volume": [1] * 30,
             "label": [0] * 15 + [1] * 15,
         })
         df.to_csv(csv_path, index=False)
@@ -188,7 +199,17 @@ def test_labeling_and_cutoff(tmp_path, monkeypatch):
 
 
 def test_generate_ml_signal(monkeypatch):
-    df = pd.DataFrame({"ema": [1], "sma": [1], "macd": [1], "rsi": [50]})
+    df = pd.DataFrame(
+        {
+            "ema": [1],
+            "sma": [1],
+            "macd": [1],
+            "rsi": [50],
+            "atr": [1],
+            "bb_width": [0.1],
+            "volume": [100],
+        }
+    )
     class Dummy:
         def predict(self, X):
             return [0]
