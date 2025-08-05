@@ -9,7 +9,9 @@
     "score_threshold": 1.7,
     "trailing_enabled": true,
     "trailing_offset_pct": 0.26,
-    "trailing_trigger_pct": 0.6
+    "trailing_trigger_pct": 0.6,
+    "swing_trailing_offset_pct": 0.52,
+    "swing_trailing_trigger_pct": 1.2
   },
   "XRPUSDT": {
     "ema_period": 15,
@@ -21,7 +23,9 @@
     "score_threshold": 1.4,
     "trailing_enabled": true,
     "trailing_offset_pct": 0.25,
-    "trailing_trigger_pct": 0.5
+    "trailing_trigger_pct": 0.5,
+    "swing_trailing_offset_pct": 0.5,
+    "swing_trailing_trigger_pct": 1.0
   },
   "TURBOUSDT": {
     "ema_period": 24,
@@ -33,6 +37,8 @@
     "score_threshold": 2.1,
     "trailing_enabled": true,
     "trailing_offset_pct": 0.25,
-    "trailing_trigger_pct": 0.5
+    "trailing_trigger_pct": 0.5,
+    "swing_trailing_offset_pct": 0.5,
+    "swing_trailing_trigger_pct": 1.0
   }
 }

@@ -15,28 +15,39 @@ from utils.historical_data import load_historical_data
 from tqdm import tqdm
 
 
-FULL_GRID: dict[str, list] = {
-    "ema_period": list(range(5, 51, 5)),
-    "sma_period": list(range(5, 51, 5)),
-    "rsi_period": list(range(10, 31, 5)),
-    "macd_fast": [8, 12, 16],
-    "macd_slow": [20, 26, 36],
-    "macd_signal": [7, 9, 12],
-    "score_threshold": [1.2, 1.5, 1.7, 2.0, 2.2],
-    "trailing_offset_pct": [0.15, 0.20, 0.25, 0.30],
-    "trailing_trigger_pct": [0.4, 0.5, 0.6, 0.7],
+# Nilai dasar bila simbol belum memiliki konfigurasi
+DEFAULT_BASE = {
+    "ema_period": 20,
+    "sma_period": 20,
+    "rsi_period": 14,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "score_threshold": 1.4,
+    "trailing_offset_pct": 0.25,
+    "trailing_trigger_pct": 0.5,
+    "swing_trailing_offset_pct": 0.5,
+    "swing_trailing_trigger_pct": 1.0,
 }
 
 
-def _get_grid(fast: bool) -> dict[str, list]:
-    """Kembalikan grid penuh atau versi ringkas untuk fast mode."""
-    if not fast:
-        return FULL_GRID
-    return {k: v[:3] if len(v) > 3 else v for k, v in FULL_GRID.items()}
+def build_local_grid(base: dict, delta: float = 0.2) -> dict[str, list]:
+    """Buat grid lokal ±delta dari nilai dasar."""
+    grid: dict[str, list] = {}
+    for k, v in base.items():
+        if isinstance(v, bool):
+            grid[k] = [v]
+        elif isinstance(v, int):
+            bawah = max(1, int(v * (1 - delta)))
+            atas = max(bawah, int(v * (1 + delta)))
+            grid[k] = list(range(bawah, atas + 1))
+        elif isinstance(v, float):
+            grid[k] = [round(v * (1 + s), 4) for s in (-delta, -delta / 2, 0, delta / 2, delta)]
+    return grid
 
 
 def _sample_params(grid: dict[str, list]) -> dict:
-    """Ambil kombinasi parameter secara acak dari grid yang diberikan."""
+    """Ambil kombinasi parameter secara acak dari grid lokal."""
     return {k: random.choice(v) for k, v in grid.items()}
 
 
@@ -67,7 +78,15 @@ def optimize_strategy(
     if len(df) > max_bars:
         df = df.tail(max_bars)
 
-    grid = _get_grid(fast_mode)
+    # Ambil parameter dasar dari file config
+    path = os.path.join("config", "strategy_params.json")
+    if os.path.exists(path):
+        with open(path) as f:
+            base_cfg = json.load(f)
+    else:
+        base_cfg = {}
+    base_param = base_cfg.get(symbol, DEFAULT_BASE)
+    grid = build_local_grid(base_param)
 
     terbaik_params: dict | None = None
     terbaik_metrik: dict | None = None
@@ -75,13 +94,19 @@ def optimize_strategy(
     overall_metrik: dict | None = None
     tried: set[tuple] = set()
 
+    MAX_TRADES = 200
+    MIN_WR = 70.0
+    MIN_PF = 3.0
+    MIN_SHARPE = 1.0
+    MIN_AVG = 0.0
+
     def single_trial(p: dict) -> tuple[dict, dict]:
         trades, equity, _ = run_backtest(
             df.copy(),
             symbol=symbol,
             initial_capital=initial_capital,
             config=p,
-            score_threshold=p["score_threshold"],
+            score_threshold=p.get("score_threshold", 1.0),
             timeframe=tf,
             start=start,
             end=end,
@@ -105,11 +130,19 @@ def optimize_strategy(
             params, metrik = fut.result()
             winrate = metrik.get("Persentase Menang", 0.0)
             pf = metrik.get("Profit Factor", 0.0)
+            sharpe = metrik.get("Rasio Sharpe", 0.0)
+            avg = metrik.get("Rata-rata PnL", 0.0)
 
             if overall_params is None or winrate > overall_metrik.get("Persentase Menang", 0.0):
                 overall_params, overall_metrik = params, metrik
 
-            if winrate < 75.0 or pf <= 3:
+            if (
+                winrate < MIN_WR
+                or pf < MIN_PF
+                or sharpe < MIN_SHARPE
+                or metrik.get("Total Transaksi", 0) > MAX_TRADES
+                or avg < MIN_AVG
+            ):
                 continue
 
             if terbaik_params is None:
@@ -117,27 +150,29 @@ def optimize_strategy(
             else:
                 best_wr = terbaik_metrik.get("Persentase Menang", 0.0)
                 best_pf = terbaik_metrik.get("Profit Factor", 0.0)
-                if winrate > best_wr or (winrate == best_wr and pf > best_pf):
+                best_sh = terbaik_metrik.get("Rasio Sharpe", 0.0)
+                if (
+                    winrate > best_wr
+                    or (winrate == best_wr and pf > best_pf)
+                    or (
+                        winrate == best_wr
+                        and pf == best_pf
+                        and sharpe > best_sh
+                    )
+                ):
                     terbaik_params, terbaik_metrik = params, metrik
 
-            if early_stop and winrate >= 75.0 and pf > 3:
+            if early_stop and winrate >= MIN_WR and pf >= MIN_PF:
                 break
 
     if terbaik_params is None:
-        logging.warning("Tidak ada kombinasi memenuhi winrate >=75% dan PF>3")
+        logging.warning("Tidak ada kombinasi memenuhi kriteria minimum")
         return overall_params, overall_metrik
 
     terbaik_params["trailing_enabled"] = True
-
-    path = os.path.join("config", "strategy_params.json")
-    if os.path.exists(path):
-        with open(path) as f:
-            strategi = json.load(f)
-    else:
-        strategi = {}
-    strategi[symbol] = terbaik_params
+    base_cfg[symbol] = terbaik_params
     with open(path, "w") as f:
-        json.dump(strategi, f, indent=2)
+        json.dump(base_cfg, f, indent=2)
 
     return terbaik_params, terbaik_metrik
 

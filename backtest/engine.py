@@ -1,6 +1,10 @@
 import pandas as pd
 
-from strategies.scalping_strategy import apply_indicators, generate_signals
+from strategies.scalping_strategy import (
+    apply_indicators,
+    generate_signals,
+    confirm_by_higher_tf,
+)
 from risk_management.position_manager import apply_trailing_sl
 from execution.order_monitor import check_exit_condition
 from risk_management.risk_calculator import calculate_order_qty
@@ -41,9 +45,6 @@ def run_backtest(
     equity: list[float] = []
     hold = 0
 
-    trig_pct = config.get("trailing_trigger_pct", 0.5) if config else 0.5
-    off_pct = config.get("trailing_offset_pct", 0.25) if config else 0.25
-
     for i in range(len(df)):
         df_slice = df.iloc[: i + 1].copy()
         df_slice = generate_signals(df_slice, score_threshold, symbol, config)
@@ -58,18 +59,25 @@ def run_backtest(
                 active_trade.entry_price,
                 active_trade.side,
                 active_trade.trailing_sl,
-                trig_pct,
-                off_pct,
+                active_trade.trigger_threshold,
+                active_trade.trailing_offset,
             )
 
-            if check_exit_condition(
+            long_ok, short_ok = confirm_by_higher_tf(df_slice, config)
+            need_close = check_exit_condition(
                 price,
                 active_trade.trailing_sl,
                 active_trade.tp,
                 hold,
                 100,
                 active_trade.side,
-            ):
+            )
+            if active_trade.side == "long" and short_ok:
+                need_close = True
+            if active_trade.side == "short" and long_ok:
+                need_close = True
+
+            if need_close:
                 exit_price = price
                 if active_trade.side == "long":
                     pnl = (exit_price - active_trade.entry_price) * active_trade.size
@@ -92,7 +100,27 @@ def run_backtest(
                 size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
-                    active_trade = Trade(symbol, "long", time, price, size, sl, tp, trailing_sl=sl)
+                    trig = config.get("trailing_trigger_pct", 0.5) if config else 0.5
+                    off = config.get("trailing_offset_pct", 0.25) if config else 0.25
+                    if row.get("signal_mode") == "swing":
+                        if config:
+                            trig = config.get("swing_trailing_trigger_pct", trig * 2)
+                            off = config.get("swing_trailing_offset_pct", off * 2)
+                        else:
+                            trig *= 2
+                            off *= 2
+                    active_trade = Trade(
+                        symbol,
+                        "long",
+                        time,
+                        price,
+                        size,
+                        sl,
+                        tp,
+                        trailing_sl=sl,
+                        trailing_offset=off,
+                        trigger_threshold=trig,
+                    )
                     active_trade.margin = margin
                     capital -= margin
             elif allow_short and row.get("short_signal"):
@@ -101,7 +129,27 @@ def run_backtest(
                 size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
-                    active_trade = Trade(symbol, "short", time, price, size, sl, tp, trailing_sl=sl)
+                    trig = config.get("trailing_trigger_pct", 0.5) if config else 0.5
+                    off = config.get("trailing_offset_pct", 0.25) if config else 0.25
+                    if row.get("signal_mode") == "swing":
+                        if config:
+                            trig = config.get("swing_trailing_trigger_pct", trig * 2)
+                            off = config.get("swing_trailing_offset_pct", off * 2)
+                        else:
+                            trig *= 2
+                            off *= 2
+                    active_trade = Trade(
+                        symbol,
+                        "short",
+                        time,
+                        price,
+                        size,
+                        sl,
+                        tp,
+                        trailing_sl=sl,
+                        trailing_offset=off,
+                        trigger_threshold=trig,
+                    )
                     active_trade.margin = margin
                     capital -= margin
 
