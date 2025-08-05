@@ -2,6 +2,8 @@
 
 Bot trading scalping crypto modular untuk Binance Futures — siap deploy, bisa dikontrol lewat Streamlit dan Telegram.
 
+Kini RajaDollar hanya entry pada setup paling presisi hasil optimasi, multi-symbol, dan multi-timeframe. Target harian 1–4 sinyal profit dari seluruh pair, menghindari overtrade.
+
 ---
 
 ## 📦 Struktur Folder Modular

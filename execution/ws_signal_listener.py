@@ -5,6 +5,7 @@ import streamlit as st
 import logging
 from utils.data_provider import fetch_latest_data
 from strategies.scalping_strategy import apply_indicators, generate_signals
+from database.signal_logger import log_signal, init_db
 import utils.bot_flags as bot_flags
 from notifications.notifier import laporkan_error, kirim_notifikasi_telegram
 
@@ -28,6 +29,28 @@ client_global = None
 _tasks: dict[str, asyncio.Task] = {}
 
 
+def _higher_tf_trend(symbol: str, params: dict) -> tuple[bool, bool]:
+    """Validasi arah tren pada timeframe 1H dan 4H."""
+    long_ok = short_ok = False
+    try:
+        df1h = fetch_latest_data(symbol, client_global, interval="1h", limit=100)
+        df1h = apply_indicators(df1h, params)
+        long1 = df1h['ema'].iloc[-1] > df1h['sma'].iloc[-1]
+        short1 = df1h['ema'].iloc[-1] < df1h['sma'].iloc[-1]
+
+        df4h = fetch_latest_data(symbol, client_global, interval="4h", limit=100)
+        df4h = apply_indicators(df4h, params)
+        long4 = df4h['ema'].iloc[-1] > df4h['sma'].iloc[-1]
+        short4 = df4h['ema'].iloc[-1] < df4h['sma'].iloc[-1]
+
+        long_ok = long1 and long4
+        short_ok = short1 and short4
+    except Exception as e:  # pragma: no cover - kegagalan data
+        logging.warning(f"Gagal cek higher TF {symbol}: {e}")
+        long_ok = short_ok = True
+    return long_ok, short_ok
+
+
 def register_signal_handler(symbol: str, callback):
     signal_callbacks[symbol.upper()] = callback
 
@@ -47,7 +70,15 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                     df = fetch_latest_data(symbol, client_global, interval=timeframe, limit=100)
                     df = apply_indicators(df, strategy_params[symbol])
                     df = generate_signals(df, strategy_params[symbol]["score_threshold"])
+                    long_ok, short_ok = _higher_tf_trend(symbol, strategy_params[symbol])
                     last = df.iloc[-1]
+                    last_long = bool(last.get("long_signal")) and long_ok
+                    last_short = bool(last.get("short_signal")) and short_ok
+                    last["long_signal"], last["short_signal"] = last_long, last_short
+                    if last_long:
+                        log_signal(symbol, "long", float(last.get("score_long", 0)))
+                    elif last_short:
+                        log_signal(symbol, "short", float(last.get("score_short", 0)))
                     if symbol in signal_callbacks:
                         signal_callbacks[symbol](symbol, last)
                     if not last.get("long_signal") and not last.get("short_signal"):
@@ -72,6 +103,7 @@ def start_signal_stream(client, symbols: list[str], strategy_params, timeframe: 
             print("Bot belum siap, signal stream tidak dimulai")
         return
     client_global = client
+    init_db()
     loop = _ensure_loop()
     try:
         async_client = loop.run_until_complete(
