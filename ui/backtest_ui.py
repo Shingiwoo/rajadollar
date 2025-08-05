@@ -8,10 +8,11 @@ import requests
 import streamlit as st
 import plotly.graph_objects as go
 import json
+import logging
 
 from backtest.engine import run_backtest
 from backtest.metrics import calculate_metrics
-from backtest.optimizer import optimize_strategy
+from backtest.optimizer import optimize_strategy, optimal_params_in_memory
 from ml import training
 from ml.historical_trainer import label_and_save
 from utils.historical_data import MAX_DAYS
@@ -71,6 +72,14 @@ if os.path.exists(STRAT_PATH):
         STRATEGY_PARAMS = json.load(f)
 else:
     STRATEGY_PARAMS = {}
+if optimal_params_in_memory:
+    STRATEGY_PARAMS.update(optimal_params_in_memory)
+
+st.download_button(
+    "📥 Unduh Param Optimal (.json)",
+    json.dumps(STRATEGY_PARAMS, indent=2),
+    file_name="strategy_params.json",
+)
 
 simbol_terpilih = st.multiselect("Pilih Simbol", SEMUA_SIMBOL, default=SEMUA_SIMBOL[:3])
 kol1, kol2 = st.columns(2)
@@ -119,8 +128,18 @@ if do_optimize:
                         simbol, tf, str(tanggal_mulai), str(tanggal_akhir)
                     )
                     STRATEGY_PARAMS[simbol] = best_param or {}
-                    with open(STRAT_PATH, "w") as f:
-                        json.dump(STRATEGY_PARAMS, f, indent=2)
+                    try:
+                        with open(STRAT_PATH, "w") as f:
+                            json.dump(STRATEGY_PARAMS, f, indent=2)
+                    except PermissionError as e:
+                        logging.warning(f"Gagal menyimpan ke {STRAT_PATH}: {e}")
+                        st.warning(
+                            f"Gagal menyimpan ke {STRAT_PATH} (permission denied). Param optimal hanya tersedia di sesi ini."
+                        )
+                        st.info(
+                            "Perbaiki permission dengan: sudo chown -R 1000:1000 config; sudo chmod -R u+w config"
+                        )
+                        optimal_params_in_memory[simbol] = best_param or {}
                     winrate = best_metrik.get("Persentase Menang", 0) if best_metrik else 0
                     pf = best_metrik.get("Profit Factor", 0) if best_metrik else 0
                     pesan = f"Optimasi {simbol} selesai. Winrate: {winrate:.2f}% PF: {pf:.2f}"
@@ -211,7 +230,7 @@ if jalankan:
                 progress.progress(i / len(simbol_terpilih))
         progress.empty()
         for simbol, df in hasil_data.items():
-            params = STRATEGY_PARAMS.get(simbol)
+            params = optimal_params_in_memory.get(simbol) or STRATEGY_PARAMS.get(simbol)
             if not params:
                 with st.spinner(f"Otomatis optimasi param {simbol}..."):
                     try:
@@ -219,8 +238,18 @@ if jalankan:
                             simbol, tf, str(tanggal_mulai), str(tanggal_akhir)
                         )
                         STRATEGY_PARAMS[simbol] = params or {}
-                        with open(STRAT_PATH, "w") as f:
-                            json.dump(STRATEGY_PARAMS, f, indent=2)
+                        try:
+                            with open(STRAT_PATH, "w") as f:
+                                json.dump(STRATEGY_PARAMS, f, indent=2)
+                        except PermissionError as e:
+                            logging.warning(f"Gagal menyimpan ke {STRAT_PATH}: {e}")
+                            st.warning(
+                                f"Gagal menyimpan ke {STRAT_PATH} (permission denied). Param optimal hanya tersedia di sesi ini."
+                            )
+                            st.info(
+                                "Perbaiki permission dengan: sudo chown -R 1000:1000 config; sudo chmod -R u+w config"
+                            )
+                            optimal_params_in_memory[simbol] = params or {}
                         winrate = met_opt.get("Persentase Menang", 0) if met_opt else 0
                         pf = met_opt.get("Profit Factor", 0) if met_opt else 0
                         pesan = f"Winrate: {winrate:.2f}% PF: {pf:.2f}"
@@ -261,7 +290,7 @@ if jalankan:
                     st.error(f"Training {simbol} gagal: {e}")
                     continue
             with st.spinner(f"Menjalankan backtest {simbol}"):
-                cfg_sym = STRATEGY_PARAMS.get(simbol, {})
+                cfg_sym = optimal_params_in_memory.get(simbol) or STRATEGY_PARAMS.get(simbol, {})
                 trades, equity, _ = run_backtest(
                     df,
                     symbol=simbol,
@@ -290,7 +319,7 @@ if jalankan:
                     if isinstance(v, pd.Timedelta):
                         v = str(v)
                     col.metric(k, v)
-            params = STRATEGY_PARAMS.get(simbol, {})
+            params = optimal_params_in_memory.get(simbol) or STRATEGY_PARAMS.get(simbol, {})
             st.json(params)
             if kurva is not None:
                 fig = go.Figure()

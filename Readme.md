@@ -177,6 +177,13 @@ Strategi dikonfigurasi lewat `config/strategy_params.json`. Model ML akan dilati
 Optimasi strategi kini mencakup semua parameter utama per simbol dan otomatis memperbarui file config setelah proses optimasi selesai.
 Kini UI backtest mendukung Optimasi Parameter per-simbol. Jika parameter belum ada, sistem akan otomatis optimasi sebelum backtest.
 
+Jika penyimpanan ke `config/strategy_params.json` gagal karena izin, parameter optimal tetap tersedia di memori untuk sesi berjalan. Unduh manual atau perbaiki izin dengan:
+
+```
+sudo chown -R 1000:1000 config
+sudo chmod -R u+w config
+```
+
 ### FAQ
 - **Apakah aman restart?** Ya, data di `runtime_state` dipulihkan otomatis.
 - **Bagaimana menghindari rate limit?** Semua panggilan Binance melalui `utils/safe_api.py`.

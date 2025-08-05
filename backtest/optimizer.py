@@ -14,6 +14,14 @@ from backtest.metrics import calculate_metrics
 from utils.historical_data import load_historical_data
 from tqdm import tqdm
 
+try:  # streamlit opsional
+    import streamlit as st
+except Exception:  # pragma: no cover
+    st = None
+
+
+optimal_params_in_memory: dict[str, dict] = {}
+
 
 # Nilai dasar bila simbol belum memiliki konfigurasi
 DEFAULT_BASE = {
@@ -85,6 +93,8 @@ def optimize_strategy(
             base_cfg = json.load(f)
     else:
         base_cfg = {}
+    if symbol in optimal_params_in_memory:
+        base_cfg[symbol] = optimal_params_in_memory[symbol]
     base_param = base_cfg.get(symbol, DEFAULT_BASE)
     grid = build_local_grid(base_param)
 
@@ -171,11 +181,24 @@ def optimize_strategy(
 
     terbaik_params["trailing_enabled"] = True
     base_cfg[symbol] = terbaik_params
-    with open(path, "w") as f:
-        json.dump(base_cfg, f, indent=2)
+    try:
+        with open(path, "w") as f:
+            json.dump(base_cfg, f, indent=2)
+    except PermissionError as e:
+        logging.warning(f"Gagal menyimpan ke {path}: {e}")
+        if st:
+            st.warning(
+                f"Gagal menyimpan ke {path} (permission denied). Param optimal hanya tersedia di sesi ini."
+            )
+            st.info(
+                "Perbaiki permission dengan: sudo chown -R 1000:1000 config; sudo chmod -R u+w config"
+            )
+        optimal_params_in_memory[symbol] = terbaik_params
+    else:
+        optimal_params_in_memory.pop(symbol, None)
 
     return terbaik_params, terbaik_metrik
 
 
-__all__ = ["optimize_strategy"]
+__all__ = ["optimize_strategy", "optimal_params_in_memory"]
 
