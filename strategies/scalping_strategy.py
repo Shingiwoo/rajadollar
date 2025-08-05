@@ -148,7 +148,25 @@ def confirm_by_higher_tf(df, config=None):
     df15 = df.resample('15T').agg(ohlc).dropna()
     if df15.empty:
         return True, True
-    df15 = apply_indicators(df15, config)
+
+    min_window = max(
+        config.get('ema_period', 20),
+        config.get('sma_period', 20),
+        config.get('rsi_period', 14),
+        config.get('macd_slow', 26),
+        20,
+    )
+    if len(df15) < min_window:
+        logging.warning(
+            "Data terlalu pendek untuk konfirmasi indikator di TF lebih besar. Tambah range data!"
+        )
+        return True, True
+
+    try:
+        df15 = apply_indicators(df15, config)
+    except Exception as e:
+        logging.warning(f"apply_indicators gagal (resample 15m): {e}")
+        return True, True
     rsi_th = config.get('rsi_threshold', 40)
     long_ok = (
         (df15['ema'] > df15['sma'])

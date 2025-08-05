@@ -80,6 +80,8 @@ sudo chmod -R u+w data/historical_data
 
 Optimasi dan training akan otomatis memakai data yang sudah ada, melakukan konversi timeframe jika memungkinkan, dan hanya mengunduh baru bila diperlukan.
 
+> **Catatan:** Konfirmasi multi-timeframe membutuhkan minimal 20–30 bar pada timeframe lebih besar (15m/1h), pastikan data historis yang diambil memenuhi syarat tersebut.
+
 ---
 
 ## 🔧 **Fitur Utama**
