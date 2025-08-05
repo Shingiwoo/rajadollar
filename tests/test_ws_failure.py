@@ -27,5 +27,5 @@ def test_ws_signal_fail(monkeypatch):
     bot_flags.IS_READY = True
     monkeypatch.setattr(sl.AsyncClient, "create", lambda *a, **k: (_ for _ in ()).throw(Exception("fail")))
     client = DummyClient(API_KEY="a", API_SECRET="b", testnet=True)
-    sl.start_signal_stream(client, ["BTCUSDT"], {"BTCUSDT": {"score_threshold":0}})
+    sl.start_signal_stream(client, ["BTCUSDT"], {"BTCUSDT": {"score_threshold":0, "hybrid_fallback": False}})
     assert not sl.is_signal_stream_running()

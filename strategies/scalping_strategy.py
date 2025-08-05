@@ -6,6 +6,7 @@ from sklearn.base import ClassifierMixin
 import pickle
 import os
 import logging
+import numpy as np
 
 from utils.config_loader import load_global_config
 from utils.historical_data import MAX_DAYS
@@ -65,11 +66,12 @@ def load_ml_model(symbol: str, path: str | None = None, timeframe: str | None = 
 load_ml_model("")
 
 def generate_ml_signal(df, symbol: str = ""):
-    """Prediksi sinyal ML untuk bar terakhir."""
+    """Prediksi sinyal ML dan confidence untuk bar terakhir."""
     model = load_ml_model(symbol)
     if model is None:
         logging.warning(f"Prediksi ML gagal atau model tidak ada untuk {symbol}, default ml_signal=1")
         df.loc[df.index[-1], 'ml_signal'] = 1
+        df.loc[df.index[-1], 'ml_confidence'] = 0.0
         return df
 
     features = df[
@@ -78,13 +80,22 @@ def generate_ml_signal(df, symbol: str = ""):
     if features.isnull().values.any():
         logging.warning("Fitur ML mengandung NaN, default ml_signal = 1")
         pred = 1
+        conf = 0.0
     else:
         try:
-            pred = int(model.predict(features)[0])
+            if hasattr(model, "predict_proba"):
+                proba = model.predict_proba(features)[0]
+                conf = float(np.max(proba))
+                pred = int(np.argmax(proba))
+            else:
+                pred = int(model.predict(features)[0])
+                conf = 0.5
         except Exception as e:
             logging.error(f"Prediksi ML {symbol} gagal: {e}")
             pred = 1
+            conf = 0.0
     df.loc[df.index[-1], 'ml_signal'] = pred
+    df.loc[df.index[-1], 'ml_confidence'] = conf
     return df
 
 def apply_indicators(df, config=None, bb_std=2):
@@ -183,7 +194,7 @@ def confirm_by_higher_tf(df, config=None):
     return bool(long_ok), bool(short_ok)
 
 
-def generate_signals(df, score_threshold=1.4, symbol: str = "", config=None):
+def generate_signals(df, score_threshold=1.8, symbol: str = "", config=None):
     if config is None:
         config = {}
     rsi_th = config.get('rsi_threshold', 40)
@@ -192,9 +203,15 @@ def generate_signals(df, score_threshold=1.4, symbol: str = "", config=None):
     short_lower = max(rsi_th - 10, 0)
     short_upper = min(rsi_th + 20, 100)
 
+    ml_conf_th = config.get('ml_conf_threshold', 0.7)
+    strong_th = config.get('strong_score_threshold', score_threshold + 0.5)
+    use_hybrid = config.get('hybrid_fallback', True)
+
     # Hitung sinyal ML sebelum kalkulasi teknikal
     if 'ml_signal' not in df.columns:
         df['ml_signal'] = 1
+    if 'ml_confidence' not in df.columns:
+        df['ml_confidence'] = 0.0
     df = generate_ml_signal(df, symbol)
 
     # Long signal conditions
@@ -223,6 +240,17 @@ def generate_signals(df, score_threshold=1.4, symbol: str = "", config=None):
     df['score_short'] = score_short
     df['short_signal'] = score_short >= score_threshold
 
+    reason = ""
+    if use_hybrid:
+        ml_conf = df['ml_confidence'].iloc[-1]
+        if ml_conf < ml_conf_th:
+            df['long_signal'] = df['score_long'] >= strong_th
+            df['short_signal'] = df['score_short'] >= strong_th
+            if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
+                reason = "Confidence ML rendah"
+        elif not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
+            reason = "Menunggu konfirmasi indikator"
+
     # Konfirmasi timeframe lebih besar
     long_ok, short_ok = confirm_by_higher_tf(df, config)
     df['swing_long'] = df['long_signal'] & long_ok
@@ -230,12 +258,12 @@ def generate_signals(df, score_threshold=1.4, symbol: str = "", config=None):
     mode = 'swing' if df['swing_long'].iloc[-1] or df['swing_short'].iloc[-1] else 'scalp'
     df.loc[df.index[-1], 'signal_mode'] = mode
 
-    reason = ""
     if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
-        if not cond_long1.iloc[-1] and not cond_short1.iloc[-1]:
-            reason = "MA not aligned"
-        else:
-            reason = "Score below threshold"
+        if not reason:
+            if not cond_long1.iloc[-1] and not cond_short1.iloc[-1]:
+                reason = "MA not aligned"
+            else:
+                reason = "Score below threshold"
         logging.info(
             f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f} < {score_threshold}"
         )
