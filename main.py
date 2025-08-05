@@ -119,6 +119,7 @@ max_slip = st.sidebar.number_input("Max Slippage (%)", 0.1, 1.0, 0.5)
 score_threshold = st.sidebar.number_input("Ambang Skor", 0.0, 3.0, 1.8, 0.1)
 ml_conf_threshold = st.sidebar.slider("Ambang Kepercayaan ML", 0.0, 1.0, 0.7, 0.05)
 hybrid_fallback = st.sidebar.checkbox("Hybrid Fallback", True)
+only_trend_15m = st.sidebar.checkbox("Hanya entry searah trend 15m", True)
 loss_limit = st.sidebar.number_input("Batas Loss Harian (USDT)", -1000.0, 0.0, -50.0, step=10.0)
 resume_flag = st.sidebar.checkbox("Resume Otomatis", True)
 notif_entry = st.sidebar.checkbox("Notifikasi Entry", True)
@@ -163,6 +164,7 @@ if start_clicked and not st.session_state.bot_running:
             strategy_params[sym]["score_threshold"] = score_threshold
             strategy_params[sym]["ml_conf_threshold"] = ml_conf_threshold
             strategy_params[sym]["hybrid_fallback"] = hybrid_fallback
+            strategy_params[sym]["only_trend_15m"] = only_trend_15m
         cfg = build_cfg(
             api_key,
             api_secret,
