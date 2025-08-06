@@ -79,6 +79,7 @@ def optimize_strategy(
     max_bars: int | None = None,
     fast_mode: bool = False,
     early_stop: bool = False,
+    use_optimizer: bool = True,
 ):
     """Cari kombinasi parameter terbaik dan simpan ke strategy_params.json.
 
@@ -87,7 +88,7 @@ def optimize_strategy(
     """
 
     cfg_strategy = load_strategy_config()
-    if not cfg_strategy.get("enable_optimizer", True):
+    if not use_optimizer or not cfg_strategy.get("enable_optimizer", True):
         manual = cfg_strategy.get("manual_parameters", {})
         return manual.get(symbol, manual.get("DEFAULT", {})), {}
 

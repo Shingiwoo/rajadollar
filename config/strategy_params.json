@@ -24,7 +24,8 @@
     "swing_trailing_offset_pct": 0.6,
     "swing_trailing_trigger_pct": 2.0,
     "min_bb_width": 0.005,
-    "max_trades_per_day": 4
+    "max_trades_per_day": 4,
+    "signal_engine": "legacy"
   },
   "XRPUSDT": {
     "ema_period": 15,
@@ -51,7 +52,8 @@
     "swing_trailing_offset_pct": 0.6,
     "swing_trailing_trigger_pct": 2.0,
     "min_bb_width": 0.005,
-    "max_trades_per_day": 4
+    "max_trades_per_day": 4,
+    "signal_engine": "legacy"
   },
   "TURBOUSDT": {
     "ema_period": 24,
@@ -78,6 +80,7 @@
     "swing_trailing_offset_pct": 0.6,
     "swing_trailing_trigger_pct": 2.0,
     "min_bb_width": 0.005,
-    "max_trades_per_day": 4
+    "max_trades_per_day": 4,
+    "signal_engine": "legacy"
   }
 }

@@ -2,7 +2,11 @@ import pandas as pd
 import numpy as np
 import pandas as pd
 import pytest
-from strategies.scalping_strategy import apply_indicators, generate_signals
+from strategies.scalping_strategy import (
+    apply_indicators,
+    generate_signals,
+    generate_signals_pythontrading_style,
+)
 import strategies.scalping_strategy as strat
 
 @pytest.fixture
@@ -96,3 +100,15 @@ def test_crossover_filter(dummy_df, config):
     df.loc[df.index[-1], 'rsi'] = 50
     df = generate_signals(df, config['score_threshold'], config=config)
     assert df['long_signal'].iloc[-1]
+
+
+def test_pythontrading_style(dummy_df, config):
+    df = apply_indicators(dummy_df.copy(), config)
+    df['ml_signal'] = 1
+    df.loc[df.index[-1], 'ema'] = df['sma'].iloc[-1] + 1
+    df.loc[df.index[-1], 'macd'] = df['macd_signal'].iloc[-1] + 1
+    df.loc[df.index[-1], 'rsi'] = 50
+    params = {'score_threshold': 2.0}
+    df = generate_signals_pythontrading_style(df, params)
+    assert df['long_signal'].iloc[-1]
+    assert not df['short_signal'].iloc[-1]
