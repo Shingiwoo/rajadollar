@@ -241,7 +241,13 @@ def generate_signals(df, score_threshold=1.8, symbol: str = "", config=None):
     df['short_signal'] = score_short >= score_threshold
 
     reason = ""
-    if use_hybrid:
+    min_bb = config.get('min_bb_width', 0)
+    if df['bb_width'].iloc[-1] < min_bb:
+        df['long_signal'] = False
+        df['short_signal'] = False
+        reason = "Volatilitas rendah"
+
+    if use_hybrid and not reason:
         ml_conf = df['ml_confidence'].iloc[-1]
         if ml_conf < ml_conf_th:
             df['long_signal'] = df['score_long'] >= strong_th
