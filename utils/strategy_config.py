@@ -1,0 +1,39 @@
+import json
+import os
+from typing import Dict, Any
+
+STRATEGY_CFG_PATH = os.path.join("config", "strategy.json")
+
+DEFAULT_MANUAL_PARAMS = {
+    "ema_period": 5,
+    "sma_period": 22,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "rsi_period": 14,
+    "bb_window": 20,
+    "atr_window": 14,
+    "score_threshold": 1.8,
+}
+
+
+def load_strategy_config(path: str | None = None) -> Dict[str, Any]:
+    cfg_path = path or STRATEGY_CFG_PATH
+    if os.path.exists(cfg_path):
+        with open(cfg_path) as f:
+            return json.load(f)
+    return {"enable_optimizer": True, "manual_parameters": DEFAULT_MANUAL_PARAMS.copy()}
+
+
+def save_strategy_config(cfg: Dict[str, Any], path: str | None = None) -> None:
+    cfg_path = path or STRATEGY_CFG_PATH
+    os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
+    with open(cfg_path, "w") as f:
+        json.dump(cfg, f, indent=2)
+
+
+def validate_manual_params(params: Dict[str, Any]) -> bool:
+    for k, v in params.items():
+        if isinstance(v, (int, float)) and v <= 0:
+            raise ValueError(f"{k} harus > 0")
+    return True

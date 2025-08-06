@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from backtest.engine import run_backtest
 from backtest.metrics import calculate_metrics
 from utils.historical_data import load_historical_data
+from utils.strategy_config import load_strategy_config
 from tqdm import tqdm
 
 try:  # streamlit opsional
@@ -81,6 +82,10 @@ def optimize_strategy(
     Prioritas seleksi berdasarkan winrate kemudian Profit Factor.
     Target minimum: winrate >= 75% dan Profit Factor > 3.
     """
+
+    cfg_strategy = load_strategy_config()
+    if not cfg_strategy.get("enable_optimizer", True):
+        return cfg_strategy.get("manual_parameters", {}), {}
 
     n_iter = n_iter or int(os.getenv("N_ITER", 30))
     n_jobs = n_jobs or int(os.getenv("N_JOBS", 2))

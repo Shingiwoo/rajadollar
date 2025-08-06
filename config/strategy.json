@@ -1,0 +1,14 @@
+{
+  "enable_optimizer": true,
+  "manual_parameters": {
+    "ema_period": 5,
+    "sma_period": 22,
+    "macd_fast": 12,
+    "macd_slow": 26,
+    "macd_signal": 9,
+    "rsi_period": 14,
+    "bb_window": 20,
+    "atr_window": 14,
+    "score_threshold": 1.8
+  }
+}

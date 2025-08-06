@@ -16,9 +16,66 @@ from backtest.optimizer import optimize_strategy, optimal_params_in_memory
 from ml import training
 from ml.historical_trainer import label_and_save
 from utils.historical_data import MAX_DAYS
+from utils.strategy_config import (
+    load_strategy_config,
+    save_strategy_config,
+    validate_manual_params,
+)
 
 st.set_page_config(page_title="Backtest Multi-Simbol")
 st.title("Backtest Multi-Simbol")
+
+cfg_strategy = load_strategy_config()
+enable_optimizer = st.sidebar.checkbox(
+    "Aktifkan Optimizer", cfg_strategy.get("enable_optimizer", True)
+)
+cfg_strategy["enable_optimizer"] = enable_optimizer
+if not enable_optimizer:
+    st.sidebar.subheader("Parameter Manual")
+    manual = cfg_strategy.get("manual_parameters", {})
+    ema_period = st.sidebar.number_input(
+        "EMA Period", 1, 200, manual.get("ema_period", 5)
+    )
+    sma_period = st.sidebar.number_input(
+        "SMA Period", 1, 200, manual.get("sma_period", 22)
+    )
+    macd_fast = st.sidebar.number_input(
+        "MACD Fast", 1, 200, manual.get("macd_fast", 12)
+    )
+    macd_slow = st.sidebar.number_input(
+        "MACD Slow", 1, 200, manual.get("macd_slow", 26)
+    )
+    macd_signal = st.sidebar.number_input(
+        "MACD Signal", 1, 200, manual.get("macd_signal", 9)
+    )
+    rsi_period = st.sidebar.number_input(
+        "RSI Period", 1, 200, manual.get("rsi_period", 14)
+    )
+    bb_window = st.sidebar.number_input(
+        "BB Window", 1, 200, manual.get("bb_window", 20)
+    )
+    atr_window = st.sidebar.number_input(
+        "ATR Window", 1, 200, manual.get("atr_window", 14)
+    )
+    score_threshold = st.sidebar.number_input(
+        "Ambang Skor", 0.1, 5.0, manual.get("score_threshold", 1.8), 0.1
+    )
+    if st.sidebar.button("Simpan Param Manual"):
+        manual_new = {
+            "ema_period": int(ema_period),
+            "sma_period": int(sma_period),
+            "macd_fast": int(macd_fast),
+            "macd_slow": int(macd_slow),
+            "macd_signal": int(macd_signal),
+            "rsi_period": int(rsi_period),
+            "bb_window": int(bb_window),
+            "atr_window": int(atr_window),
+            "score_threshold": float(score_threshold),
+        }
+        validate_manual_params(manual_new)
+        cfg_strategy["manual_parameters"] = manual_new
+        st.sidebar.success("Tersimpan")
+save_strategy_config(cfg_strategy)
 
 # Hanya inisialisasi sekali, sebelum form!
 for k, v in {
@@ -98,8 +155,11 @@ if "backtest_running" not in st.session_state:
     st.session_state.backtest_running = False
 
 col_btn1, col_btn2 = st.columns(2)
-with col_btn1:
-    do_optimize = st.button("🔎 Optimasi Parameter", key="btn_optimize")
+if enable_optimizer:
+    with col_btn1:
+        do_optimize = st.button("🔎 Optimasi Parameter", key="btn_optimize")
+else:
+    do_optimize = False
 with col_btn2:
     jalankan = st.button(
         "🔁 Backtest Pakai Param Optimal",
@@ -232,36 +292,41 @@ if jalankan:
         for simbol, df in hasil_data.items():
             params = optimal_params_in_memory.get(simbol) or STRATEGY_PARAMS.get(simbol)
             if not params:
-                with st.spinner(f"Otomatis optimasi param {simbol}..."):
-                    try:
-                        params, met_opt = optimize_strategy(
-                            simbol, tf, str(tanggal_mulai), str(tanggal_akhir)
-                        )
-                        STRATEGY_PARAMS[simbol] = params or {}
+                if enable_optimizer:
+                    with st.spinner(f"Otomatis optimasi param {simbol}..."):
                         try:
-                            with open(STRAT_PATH, "w") as f:
-                                json.dump(STRATEGY_PARAMS, f, indent=2)
-                        except PermissionError as e:
-                            logging.warning(f"Gagal menyimpan ke {STRAT_PATH}: {e}")
-                            st.warning(
-                                f"Gagal menyimpan ke {STRAT_PATH} (permission denied). Param optimal hanya tersedia di sesi ini."
+                            params, met_opt = optimize_strategy(
+                                simbol, tf, str(tanggal_mulai), str(tanggal_akhir)
                             )
-                            st.info(
-                                "Perbaiki permission dengan: sudo chown -R 1000:1000 config; sudo chmod -R u+w config"
-                            )
-                            optimal_params_in_memory[simbol] = params or {}
-                        winrate = met_opt.get("Persentase Menang", 0) if met_opt else 0
-                        pf = met_opt.get("Profit Factor", 0) if met_opt else 0
-                        pesan = f"Winrate: {winrate:.2f}% PF: {pf:.2f}"
-                        if winrate < 70 or pf <= 3:
-                            st.warning(pesan)
-                        else:
-                            st.success(pesan)
-                        if params:
-                            st.json(params)
-                    except Exception as e:
-                        st.error(f"Optimasi {simbol} gagal: {e}")
-                        continue
+                            STRATEGY_PARAMS[simbol] = params or {}
+                            try:
+                                with open(STRAT_PATH, "w") as f:
+                                    json.dump(STRATEGY_PARAMS, f, indent=2)
+                            except PermissionError as e:
+                                logging.warning(f"Gagal menyimpan ke {STRAT_PATH}: {e}")
+                                st.warning(
+                                    f"Gagal menyimpan ke {STRAT_PATH} (permission denied). Param optimal hanya tersedia di sesi ini."
+                                )
+                                st.info(
+                                    "Perbaiki permission dengan: sudo chown -R 1000:1000 config; sudo chmod -R u+w config"
+                                )
+                                optimal_params_in_memory[simbol] = params or {}
+                            winrate = met_opt.get("Persentase Menang", 0) if met_opt else 0
+                            pf = met_opt.get("Profit Factor", 0) if met_opt else 0
+                            pesan = f"Winrate: {winrate:.2f}% PF: {pf:.2f}"
+                            if winrate < 70 or pf <= 3:
+                                st.warning(pesan)
+                            else:
+                                st.success(pesan)
+                            if params:
+                                st.json(params)
+                        except Exception as e:
+                            st.error(f"Optimasi {simbol} gagal: {e}")
+                            continue
+                else:
+                    params = cfg_strategy.get("manual_parameters", {})
+            if not params:
+                continue
             path = f"data/training_data/{simbol}_{tf}.csv"
             try:
                 df_check = pd.read_csv(path, nrows=1)
