@@ -216,12 +216,17 @@ def train_selected_symbols(symbols):
             if os.path.exists(csv_path):
                 try:
                     df = pd.read_csv(csv_path)
+                    missing = [c for c in training.FEATURE_COLS if c not in df.columns]
+                    if missing:
+                        df = training.prepare_features(df)
+                        missing = [c for c in training.FEATURE_COLS if c not in df.columns]
+                    if missing:
+                        logging.error(f"[ML] Kolom fitur hilang di {csv_path}: {missing}")
+                    elif "label" in df.columns and len(df.dropna(subset=training.FEATURE_COLS + ["label"])) >= training.MIN_DATA:
+                        use_existing = True
                 except Exception as e:
                     df = pd.DataFrame()
                     logging.error(f"[ML] Gagal membaca {csv_path}: {e}")
-                else:
-                    if "label" in df.columns and len(df.dropna(subset=training.FEATURE_COLS + ["label"])) >= training.MIN_DATA:
-                        use_existing = True
 
             if use_existing:
                 acc = training.train_model(sym, tf)
