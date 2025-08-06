@@ -14,7 +14,7 @@ from models.trade import Trade
 def run_backtest(
     df: pd.DataFrame,
     initial_capital: float = 1000,
-    score_threshold: float = 1.8,
+    score_threshold: float = 2.0,
     symbol: str = "",
     direction: str = "both",
     start: str | None = None,

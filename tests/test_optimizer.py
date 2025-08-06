@@ -25,7 +25,7 @@ def test_optimize_strategy_manual(monkeypatch, tmp_path):
                 "rsi_period": 14,
                 "bb_window": 20,
                 "atr_window": 14,
-                "score_threshold": 1.8,
+                "score_threshold": 2.0,
             }
         },
     }

@@ -194,7 +194,7 @@ def confirm_by_higher_tf(df, config=None):
     return bool(long_ok), bool(short_ok)
 
 
-def generate_signals(df, score_threshold=1.8, symbol: str = "", config=None):
+def generate_signals(df, score_threshold=2.0, symbol: str = "", config=None):
     if config is None:
         config = {}
     rsi_th = config.get('rsi_threshold', 40)
@@ -204,8 +204,9 @@ def generate_signals(df, score_threshold=1.8, symbol: str = "", config=None):
     short_upper = min(rsi_th + 20, 100)
 
     ml_conf_th = config.get('ml_conf_threshold', 0.7)
-    strong_th = config.get('strong_score_threshold', score_threshold + 0.5)
     use_hybrid = config.get('hybrid_fallback', True)
+    ml_weight = config.get('ml_weight', 1.0)
+    use_crossover = config.get('use_crossover_filter', True)
 
     # Hitung sinyal ML sebelum kalkulasi teknikal
     if 'ml_signal' not in df.columns:
@@ -214,48 +215,57 @@ def generate_signals(df, score_threshold=1.8, symbol: str = "", config=None):
         df['ml_confidence'] = 0.0
     df = generate_ml_signal(df, symbol)
 
-    # Long signal conditions
-    cond_long1 = (df['ema'] > df['sma']) & (df['macd'] > df['macd_signal'])
-    cond_long2 = (df['rsi'] > long_lower) & (df['rsi'] < long_upper)
-    cond_long3 = df['ml_signal'] == 1
+    # Kondisi crossover
+    cross_up = (df['ema'] > df['sma']) & (df['ema'].shift(1) <= df['sma'].shift(1))
+    cross_down = (df['ema'] < df['sma']) & (df['ema'].shift(1) >= df['sma'].shift(1))
+
+    # Kondisi indikator
+    macd_long = df['macd'] > df['macd_signal']
+    macd_short = df['macd'] < df['macd_signal']
+    rsi_long = (df['rsi'] > long_lower) & (df['rsi'] < long_upper)
+    rsi_short = (df['rsi'] > short_lower) & (df['rsi'] < short_upper)
+
+    cond_long_ml = (df['ml_signal'] == 1).astype(float)
+    cond_short_ml = (df['ml_signal'] == 0).astype(float)
+
+    if use_hybrid and df['ml_confidence'].iloc[-1] < ml_conf_th:
+        cond_long_ml.iloc[-1] = 0.0
+        cond_short_ml.iloc[-1] = 0.0
+
+    trend_long = cross_up.astype(float) if use_crossover else (df['ema'] > df['sma']).astype(float)
+    trend_short = cross_down.astype(float) if use_crossover else (df['ema'] < df['sma']).astype(float)
 
     score_long = (
-        cond_long1.astype(float) +
-        0.5 * cond_long2.astype(float) +
-        cond_long3.astype(float)
+        trend_long +
+        0.5 * macd_long.astype(float) +
+        0.5 * rsi_long.astype(float) +
+        ml_weight * cond_long_ml
     )
-    df['score_long'] = score_long
-    df['long_signal'] = score_long >= score_threshold
-
-    # Short signal conditions
-    cond_short1 = (df['ema'] < df['sma']) & (df['macd'] < df['macd_signal'])
-    cond_short2 = (df['rsi'] > short_lower) & (df['rsi'] < short_upper)
-    cond_short3 = df['ml_signal'] == 0
-
     score_short = (
-        cond_short1.astype(float) +
-        0.5 * cond_short2.astype(float) +
-        cond_short3.astype(float)
+        trend_short +
+        0.5 * macd_short.astype(float) +
+        0.5 * rsi_short.astype(float) +
+        ml_weight * cond_short_ml
     )
+
+    df['score_long'] = score_long
     df['score_short'] = score_short
+    df['long_signal'] = score_long >= score_threshold
     df['short_signal'] = score_short >= score_threshold
 
     reason = ""
     min_bb = config.get('min_bb_width', 0)
     if df['bb_width'].iloc[-1] < min_bb:
-        df['long_signal'] = False
-        df['short_signal'] = False
+        df.loc[df.index[-1], 'long_signal'] = False
+        df.loc[df.index[-1], 'short_signal'] = False
         reason = "Volatilitas rendah"
 
-    if use_hybrid and not reason:
-        ml_conf = df['ml_confidence'].iloc[-1]
-        if ml_conf < ml_conf_th:
-            df['long_signal'] = df['score_long'] >= strong_th
-            df['short_signal'] = df['score_short'] >= strong_th
-            if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
-                reason = "Confidence ML rendah"
-        elif not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
-            reason = "Menunggu konfirmasi indikator"
+    ml_conf = df['ml_confidence'].iloc[-1]
+    if use_hybrid and ml_conf < ml_conf_th and not reason:
+        if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
+            reason = "Confidence ML rendah"
+    elif not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1] and not reason:
+        reason = "Menunggu konfirmasi indikator"
 
     long_raw = df['long_signal'].copy()
     short_raw = df['short_signal'].copy()
@@ -278,7 +288,7 @@ def generate_signals(df, score_threshold=1.8, symbol: str = "", config=None):
         if not reason:
             if config.get('only_trend_15m', True) and (long_raw_last or short_raw_last) and (not long_ok or not short_ok):
                 reason = "Tidak searah trend 15m"
-            elif not cond_long1.iloc[-1] and not cond_short1.iloc[-1]:
+            elif not (df['ema'].iloc[-1] > df['sma'].iloc[-1]) and not (df['ema'].iloc[-1] < df['sma'].iloc[-1]):
                 reason = "MA not aligned"
             else:
                 reason = "Score below threshold"

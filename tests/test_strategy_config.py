@@ -14,7 +14,10 @@ def test_validate_manual_params_ok():
         "rsi_period": 14,
         "bb_window": 20,
         "atr_window": 14,
-        "score_threshold": 1.8,
+        "score_threshold": 2.0,
+        "ml_weight": 1.0,
+        "use_crossover_filter": True,
+        "only_trend_15m": True,
     }
     assert validate_manual_params(params)
 

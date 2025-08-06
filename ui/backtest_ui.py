@@ -138,7 +138,7 @@ if not enable_optimizer and simbol_terpilih:
                 "Ambang Skor",
                 0.1,
                 5.0,
-                float(param.get("score_threshold", 1.8)),
+                float(param.get("score_threshold", 2.0)),
                 0.1,
                 key=f"{s}_score",
             )
@@ -395,7 +395,7 @@ if jalankan:
                     timeframe=tf,
                     initial_capital=initial_capital,
                     config=cfg_sym,
-                    score_threshold=cfg_sym.get("score_threshold", 1.8),
+                    score_threshold=cfg_sym.get("score_threshold", 2.0),
                     risk_per_trade=risk_per_trade,
                     leverage=leverage,
                 )
