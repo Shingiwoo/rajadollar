@@ -2,7 +2,9 @@ import pandas as pd
 
 from strategies.scalping_strategy import (
     apply_indicators,
-    generate_signals,
+    generate_signals_legacy,
+    generate_signals_pythontrading_style,
+    generate_ml_signal,
     confirm_by_higher_tf,
 )
 from risk_management.position_manager import apply_trailing_sl
@@ -36,6 +38,7 @@ def run_backtest(
     if end:
         df = df[df.index <= pd.to_datetime(end)]
 
+    config = config or {}
     df = apply_indicators(df, config)
 
     capital = initial_capital
@@ -48,7 +51,13 @@ def run_backtest(
 
     for i in range(len(df)):
         df_slice = df.iloc[: i + 1].copy()
-        df_slice = generate_signals(df_slice, score_threshold, symbol, config)
+        if config.get('signal_engine', 'legacy') == 'pythontrading_style':
+            df_slice = generate_ml_signal(df_slice, symbol)
+            df_slice = generate_signals_pythontrading_style(df_slice, config)
+        else:
+            df_slice = generate_signals_legacy(
+                df_slice, score_threshold, symbol, config
+            )
         row = df_slice.iloc[-1]
         price = row["close"]
         time = df_slice.index[-1].isoformat()

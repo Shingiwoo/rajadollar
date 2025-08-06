@@ -194,7 +194,7 @@ def confirm_by_higher_tf(df, config=None):
     return bool(long_ok), bool(short_ok)
 
 
-def generate_signals(df, score_threshold=2.0, symbol: str = "", config=None):
+def generate_signals_legacy(df, score_threshold=2.0, symbol: str = "", config=None):
     if config is None:
         config = {}
     rsi_th = config.get('rsi_threshold', 40)
@@ -302,3 +302,33 @@ def generate_signals(df, score_threshold=2.0, symbol: str = "", config=None):
 
     df.loc[df.index[-1], 'skip_reason'] = reason
     return df
+
+
+def generate_signals_pythontrading_style(df, params: dict | None = None):
+    if params is None:
+        params = {}
+    threshold = params.get('score_threshold', 2.0)
+    rsi_low = params.get('rsi_low', 40)
+    rsi_high = params.get('rsi_high', 70)
+    ml_weight = params.get('ml_weight', 1.0)
+
+    if 'ml_signal' not in df.columns:
+        df['ml_signal'] = 1
+
+    trend = (df['ema'] > df['sma']) & (df['macd'] > df['macd_signal'])
+    rsi_ok = (df['rsi'] > rsi_low) & (df['rsi'] < rsi_high)
+    ml_ok = (df['ml_signal'] == 1)
+    score = trend.astype(float) + rsi_ok.astype(float) * 0.5 + ml_ok.astype(float) * ml_weight
+    df['long_signal'] = score >= threshold
+
+    trend_s = (df['ema'] < df['sma']) & (df['macd'] < df['macd_signal'])
+    rsi_s = (df['rsi'] < (100 - rsi_low)) & (df['rsi'] > (100 - rsi_high))
+    ml_s = (df['ml_signal'] == 0)
+    score_s = trend_s.astype(float) + rsi_s.astype(float) * 0.5 + ml_s.astype(float) * ml_weight
+    df['short_signal'] = score_s >= threshold
+
+    return df
+
+
+def generate_signals(df, score_threshold=2.0, symbol: str = "", config=None):
+    return generate_signals_legacy(df, score_threshold, symbol, config)

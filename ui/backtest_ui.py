@@ -142,6 +142,12 @@ if not enable_optimizer and simbol_terpilih:
                 0.1,
                 key=f"{s}_score",
             )
+            signal_engine = st.selectbox(
+                "Engine Sinyal",
+                ["legacy", "pythontrading_style"],
+                index=["legacy", "pythontrading_style"].index(param.get("signal_engine", "legacy")),
+                key=f"{s}_engine",
+            )
         input_params[s] = {
             "ema_period": int(ema_period),
             "sma_period": int(sma_period),
@@ -152,6 +158,7 @@ if not enable_optimizer and simbol_terpilih:
             "bb_window": int(bb_window),
             "atr_window": int(atr_window),
             "score_threshold": float(score_threshold),
+            "signal_engine": signal_engine,
         }
     if st.sidebar.button("Simpan Param Manual"):
         for p in input_params.values():
@@ -215,7 +222,7 @@ if do_optimize:
             with st.spinner(f"Optimasi {simbol}..."):
                 try:
                     best_param, best_metrik = optimize_strategy(
-                        simbol, tf, str(tanggal_mulai), str(tanggal_akhir)
+                        simbol, tf, str(tanggal_mulai), str(tanggal_akhir), use_optimizer=enable_optimizer
                     )
                     STRATEGY_PARAMS[simbol] = best_param or {}
                     try:
@@ -326,7 +333,7 @@ if jalankan:
                     with st.spinner(f"Otomatis optimasi param {simbol}..."):
                         try:
                             params, met_opt = optimize_strategy(
-                                simbol, tf, str(tanggal_mulai), str(tanggal_akhir)
+                                simbol, tf, str(tanggal_mulai), str(tanggal_akhir), use_optimizer=enable_optimizer
                             )
                             STRATEGY_PARAMS[simbol] = params or {}
                             try:

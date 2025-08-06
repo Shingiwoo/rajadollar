@@ -4,7 +4,12 @@ from binance import AsyncClient, BinanceSocketManager
 import streamlit as st
 import logging
 from utils.data_provider import fetch_latest_data
-from strategies.scalping_strategy import apply_indicators, generate_signals
+from strategies.scalping_strategy import (
+    apply_indicators,
+    generate_signals_legacy,
+    generate_signals_pythontrading_style,
+    generate_ml_signal,
+)
 from database.signal_logger import log_signal, init_db
 import utils.bot_flags as bot_flags
 from notifications.notifier import laporkan_error, kirim_notifikasi_telegram
@@ -69,12 +74,17 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                 if msg["k"]["x"]:
                     df = fetch_latest_data(symbol, client_global, interval=timeframe, limit=100)
                     df = apply_indicators(df, strategy_params[symbol])
-                    df = generate_signals(
-                        df,
-                        strategy_params[symbol]["score_threshold"],
-                        symbol,
-                        strategy_params[symbol],
-                    )
+                    params = strategy_params[symbol]
+                    if params.get("signal_engine", "legacy") == "pythontrading_style":
+                        df = generate_ml_signal(df, symbol)
+                        df = generate_signals_pythontrading_style(df, params)
+                    else:
+                        df = generate_signals_legacy(
+                            df,
+                            params["score_threshold"],
+                            symbol,
+                            params,
+                        )
                     long_ok, short_ok = _higher_tf_trend(symbol, strategy_params[symbol])
                     last = df.iloc[-1]
                     last_long = bool(last.get("long_signal")) and long_ok

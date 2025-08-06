@@ -17,6 +17,7 @@ DEFAULT_MANUAL_PARAMS = {
     "ml_weight": 1.0,
     "use_crossover_filter": True,
     "only_trend_15m": True,
+    "signal_engine": "legacy",
 }
 
 

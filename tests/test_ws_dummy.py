@@ -35,7 +35,8 @@ def test_ws_dummy(monkeypatch):
         monkeypatch.setattr(wsl.AsyncClient, "create", dummy_create)
         monkeypatch.setattr(wsl, "fetch_latest_data", lambda *a, **k: __import__('pandas').DataFrame({'close':[1]}))
         monkeypatch.setattr(wsl, "apply_indicators", lambda df, params: df)
-        monkeypatch.setattr(wsl, "generate_signals", lambda df, thr, symbol=None, config=None: df)
+        monkeypatch.setattr(wsl, "generate_signals_legacy", lambda df, thr, symbol=None, config=None: df)
+        monkeypatch.setattr(wsl, "generate_signals_pythontrading_style", lambda df, params: df)
 
         called = {}
         wsl.register_signal_handler("BTCUSDT", lambda s, row: called.setdefault('s', s))
