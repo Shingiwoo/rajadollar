@@ -18,6 +18,10 @@ class Trade:
     # Field tambahan untuk konfigurasi trailing stop
     trailing_offset: float | None = None
     trigger_threshold: float | None = None
+    trailing_mode: str = "pct"
+    atr_multiplier: float | None = None
+    breakeven_threshold: float | None = None
+    atr: float | None = None
     trailing_enabled: bool = True
 
     def to_dict(self):

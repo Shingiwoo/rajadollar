@@ -119,8 +119,12 @@ def on_signal(
                 sl = price * (0.99 if side == 'long' else 1.01)
                 tp = price * (1.02 if side == 'long' else 0.98)
                 trailing_enabled = params.get("trailing_enabled", True)
-                tr_off = params.get("trailing_offset_pct", 0.25)
-                trg_thr = params.get("trailing_trigger_pct", 0.5)
+                tr_off = params.get("trailing_offset_pct", 0.3)
+                trg_thr = params.get("trailing_trigger_pct", 1.0)
+                mode = params.get("trailing_mode", "pct")
+                atr_mult = params.get("atr_multiplier")
+                breakeven_pct = params.get("breakeven_trigger_pct")
+                atr_val = params.get("atr")
 
                 trade = Trade(
                     symbol=symbol,
@@ -134,6 +138,10 @@ def on_signal(
                     order_id=oid,
                     trailing_offset=tr_off,
                     trigger_threshold=trg_thr,
+                    trailing_mode=mode,
+                    atr_multiplier=atr_mult,
+                    breakeven_threshold=breakeven_pct,
+                    atr=atr_val,
                     trailing_enabled=trailing_enabled
                 )
                 

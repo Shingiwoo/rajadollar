@@ -28,6 +28,13 @@ def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit:
             continue
 
         if trade_data.get("trailing_enabled", True):
+            step = (
+                trade_data.get("atr_multiplier")
+                if trade_data.get("trailing_mode") == "atr"
+                else trade_data.get("trailing_offset_pct")
+                or trade_data.get("trailing_offset")
+                or 0.3
+            )
             trade_data["trailing_sl"] = apply_trailing_sl(
                 price,
                 trade_data["entry_price"],
@@ -35,10 +42,11 @@ def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit:
                 trade_data.get("trailing_sl", trade_data["sl"]),
                 trade_data.get("trailing_trigger_pct")
                 or trade_data.get("trigger_threshold")
-                or 0.5,
-                trade_data.get("trailing_offset_pct")
-                or trade_data.get("trailing_offset")
-                or 0.25,
+                or 1.0,
+                step,
+                mode=trade_data.get("trailing_mode", "pct"),
+                atr=trade_data.get("atr"),
+                breakeven_pct=trade_data.get("breakeven_trigger_pct"),
             )
 
         if check_exit_condition(price, trade_data["trailing_sl"], trade_data["tp"], 0, direction=side):
