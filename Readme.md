@@ -177,6 +177,17 @@ Strategi dikonfigurasi lewat `config/strategy_params.json`. Model ML akan dilati
 Optimasi strategi kini mencakup semua parameter utama per simbol dan otomatis memperbarui file config setelah proses optimasi selesai.
 Kini UI backtest mendukung Optimasi Parameter per-simbol. Jika parameter belum ada, sistem akan otomatis optimasi sebelum backtest.
 
+Konfigurasi tambahan tersedia di `config/strategy.json`:
+
+```
+{
+  "enable_optimizer": true,
+  "manual_parameters": { ... }
+}
+```
+
+Jika `enable_optimizer` bernilai `false`, proses optimasi dilewati dan nilai pada `manual_parameters` dipakai. Anda perlu mengisi parameter indikator secara manual lewat UI backtest. Bila diaktifkan, backend akan mencari kombinasi optimal secara otomatis (proses ini dapat memakan waktu dan CPU).
+
 Jika penyimpanan ke `config/strategy_params.json` gagal karena izin, parameter optimal tetap tersedia di memori untuk sesi berjalan. Unduh manual atau perbaiki izin dengan:
 
 ```
