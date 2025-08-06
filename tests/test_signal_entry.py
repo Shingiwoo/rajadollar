@@ -50,6 +50,7 @@ def test_on_signal_entry_trigger(monkeypatch):
     monkeypatch.setattr("execution.signal_entry.is_liquidation_risk", lambda *a, **kw: False)
     monkeypatch.setattr("execution.signal_entry.verify_price_before_order", lambda *a, **kw: True)
     monkeypatch.setattr("execution.signal_entry.update_open_positions", lambda *a, **kw: mock_positions)
+    monkeypatch.setattr("execution.signal_entry.get_trades_filtered", lambda *a, **kw: [])
 
     # Exercise
     on_signal(
@@ -80,6 +81,7 @@ def test_on_signal_invalid_price(monkeypatch):
     monkeypatch.setattr("execution.signal_entry.catat_error", lambda msg: called.setdefault("msg", msg))
     mock_safe = MagicMock()
     monkeypatch.setattr("execution.signal_entry.safe_futures_create_order", mock_safe)
+    monkeypatch.setattr("execution.signal_entry.get_trades_filtered", lambda *a, **kw: [])
 
     on_signal(
         symbol=symbol,
@@ -97,3 +99,49 @@ def test_on_signal_invalid_price(monkeypatch):
 
     assert "invalid" in called.get("msg", "")
     mock_safe.assert_not_called()
+
+
+def test_swing_risk_doubling(monkeypatch):
+    symbol = "BTCUSDT"
+    test_row = {
+        "close": 100.0,
+        "long_signal": True,
+        "short_signal": False,
+        "signal_mode": "swing"
+    }
+    params = {symbol: {}}
+    mock_filters = {symbol: {"minQty": 0.001, "stepSize": 0.001, "minNotional": 5.0}}
+    set_ready(True)
+    called = {}
+    monkeypatch.setattr("execution.signal_entry.load_symbol_filters", lambda *a, **kw: mock_filters)
+    monkeypatch.setattr("execution.signal_entry.get_price", lambda s: 100.0)
+    monkeypatch.setattr("execution.signal_entry.safe_futures_create_order", MagicMock(return_value={"orderId": "1"}))
+    monkeypatch.setattr("execution.signal_entry.save_state", MagicMock())
+    monkeypatch.setattr("execution.signal_entry.kirim_notifikasi_entry", MagicMock())
+    monkeypatch.setattr("execution.signal_entry.can_open_new_position", lambda *a, **kw: True)
+    monkeypatch.setattr("execution.signal_entry.is_position_open", lambda *a, **kw: False)
+    monkeypatch.setattr("execution.signal_entry.is_liquidation_risk", lambda *a, **kw: False)
+    monkeypatch.setattr("execution.signal_entry.verify_price_before_order", lambda *a, **kw: True)
+    monkeypatch.setattr("execution.signal_entry.update_open_positions", lambda *a, **kw: None)
+    monkeypatch.setattr("execution.signal_entry.get_trades_filtered", lambda *a, **kw: [])
+
+    def fake_calc(sym, price, stop, capital, risk_pct, leverage):
+        called['risk_pct'] = risk_pct
+        return 1
+
+    monkeypatch.setattr("execution.signal_entry.calculate_order_qty", fake_calc)
+
+    on_signal(
+        symbol=symbol,
+        row=test_row,
+        client=MagicMock(),
+        strategy_params=params,
+        capital=1000,
+        leverage=10,
+        risk_pct=0.01,
+        max_pos=5,
+        max_sym=3,
+        max_slip=0.5
+    )
+
+    assert called.get('risk_pct') == 0.02

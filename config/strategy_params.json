@@ -19,7 +19,9 @@
     "swing_atr_multiplier": 3.0,
     "swing_breakeven_trigger_pct": 1.0,
     "swing_trailing_offset_pct": 0.6,
-    "swing_trailing_trigger_pct": 2.0
+    "swing_trailing_trigger_pct": 2.0,
+    "min_bb_width": 0.005,
+    "max_trades_per_day": 4
   },
   "XRPUSDT": {
     "ema_period": 15,
@@ -41,7 +43,9 @@
     "swing_atr_multiplier": 3.0,
     "swing_breakeven_trigger_pct": 1.0,
     "swing_trailing_offset_pct": 0.6,
-    "swing_trailing_trigger_pct": 2.0
+    "swing_trailing_trigger_pct": 2.0,
+    "min_bb_width": 0.005,
+    "max_trades_per_day": 4
   },
   "TURBOUSDT": {
     "ema_period": 24,
@@ -63,6 +67,8 @@
     "swing_atr_multiplier": 3.0,
     "swing_breakeven_trigger_pct": 1.0,
     "swing_trailing_offset_pct": 0.6,
-    "swing_trailing_trigger_pct": 2.0
+    "swing_trailing_trigger_pct": 2.0,
+    "min_bb_width": 0.005,
+    "max_trades_per_day": 4
   }
 }

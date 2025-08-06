@@ -44,6 +44,7 @@ def run_backtest(
     active_trade: Trade | None = None
     equity: list[float] = []
     hold = 0
+    trade_count: dict[tuple[str, str], int] = {}
 
     for i in range(len(df)):
         df_slice = df.iloc[: i + 1].copy()
@@ -102,6 +103,18 @@ def run_backtest(
         if not active_trade:
             allow_long = direction in ("long", "both")
             allow_short = direction in ("short", "both")
+            hour = df_slice.index[-1].hour
+            start_h = config.get("trade_start_hour", 0) if config else 0
+            end_h = config.get("trade_end_hour", 24) if config else 24
+            if not (start_h <= hour < end_h):
+                continue
+
+            date_key = df_slice.index[-1].date().isoformat()
+            max_trades = config.get("max_trades_per_day", 4) if config else 4
+            count = trade_count.get((symbol, date_key), 0)
+            if count >= max_trades:
+                continue
+
             if allow_long and row.get("long_signal"):
                 atr_val = row.get("atr", 0) or 0
                 min_pct = (config.get("sl_min_pct", 1.0) if config else 1.0) / 100
@@ -110,7 +123,11 @@ def run_backtest(
                 sl_dist = max(price * min_pct, atr_val * sl_atr_mult)
                 sl = price - sl_dist
                 tp = price + rr * sl_dist
-                size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
+                risk_use = risk_pct
+                conf = row.get("ml_confidence", 0)
+                if row.get("signal_mode") == "swing" or conf >= (config.get("high_confidence_th", 0.9) if config else 0.9):
+                    risk_use *= 2
+                size = calculate_order_qty(symbol, price, sl, capital, risk_use, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
                     trig = config.get("trailing_trigger_pct", 1.0) if config else 1.0
@@ -147,6 +164,7 @@ def run_backtest(
                     )
                     active_trade.margin = margin
                     capital -= margin
+                    trade_count[(symbol, date_key)] = count + 1
             elif allow_short and row.get("short_signal"):
                 atr_val = row.get("atr", 0) or 0
                 min_pct = (config.get("sl_min_pct", 1.0) if config else 1.0) / 100
@@ -155,7 +173,11 @@ def run_backtest(
                 sl_dist = max(price * min_pct, atr_val * sl_atr_mult)
                 sl = price + sl_dist
                 tp = price - rr * sl_dist
-                size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
+                risk_use = risk_pct
+                conf = row.get("ml_confidence", 0)
+                if row.get("signal_mode") == "swing" or conf >= (config.get("high_confidence_th", 0.9) if config else 0.9):
+                    risk_use *= 2
+                size = calculate_order_qty(symbol, price, sl, capital, risk_use, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
                     trig = config.get("trailing_trigger_pct", 1.0) if config else 1.0
@@ -192,6 +214,7 @@ def run_backtest(
                     )
                     active_trade.margin = margin
                     capital -= margin
+                    trade_count[(symbol, date_key)] = count + 1
 
         if active_trade:
             if active_trade.side == "long":

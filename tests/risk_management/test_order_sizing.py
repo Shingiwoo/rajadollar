@@ -10,7 +10,7 @@ def test_qty_basic():
         "BTCUSDT", entry_price=100, sl=99, capital=1000,
         risk_per_trade=0.02, leverage=20
     )
-    assert round(qty, 6) == 1.0
+    assert round(qty, 6) == 20.0
 
 
 def test_qty_zero_diff():

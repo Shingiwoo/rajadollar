@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import pandas as pd
 import pytest
 from strategies.scalping_strategy import apply_indicators, generate_signals
 import strategies.scalping_strategy as strat
@@ -72,3 +73,13 @@ def test_filter_trend_15m(monkeypatch, dummy_df, config):
     monkeypatch.setattr(strat, 'confirm_by_higher_tf', fake_confirm)
     df = generate_signals(df, 0.0, config=config)
     assert df['long_signal'].iloc[-1]
+
+
+def test_bb_width_filter(dummy_df, config):
+    df = apply_indicators(dummy_df.copy(), config)
+    df.loc[df.index[-1], 'bb_width'] = 0.0
+    config['min_bb_width'] = 0.5
+    df = generate_signals(df, config['score_threshold'], config=config)
+    assert not df['long_signal'].iloc[-1]
+    assert not df['short_signal'].iloc[-1]
+    assert df['skip_reason'].iloc[-1] == "Volatilitas rendah"

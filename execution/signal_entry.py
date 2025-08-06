@@ -1,6 +1,6 @@
 import time
 import logging
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 from typing import Dict, Any, List
 from models.trade import Trade
 from utils.state_manager import save_state, load_state
@@ -22,6 +22,7 @@ from notifications.notifier import (
     catat_error,
 )
 from utils.data_provider import load_symbol_filters
+from database.sqlite_logger import get_trades_filtered
 import utils.bot_flags as bot_flags
 from execution.ws_listener import get_price  # Ganti shared_price dengan get_price
 
@@ -62,7 +63,25 @@ def on_signal(
         filters = load_symbol_filters(client, [symbol])
         active = load_state()
         open_pos: List[Dict[str, Any]] = []
-        
+
+        # Batasi jumlah trade per hari per pair
+        max_trades = params.get("max_trades_per_day", 4)
+        today = datetime.now(UTC).date()
+        start = today.isoformat()
+        end = (today + timedelta(days=1)).isoformat()
+        trades_today = len(get_trades_filtered(symbol, start, end))
+        if trades_today >= max_trades:
+            logging.info(f"Skipped {symbol} - trade harian mencapai batas")
+            return
+
+        # Filter jam trading
+        start_hour = params.get("trade_start_hour", 0)
+        end_hour = params.get("trade_end_hour", 24)
+        now_hour = datetime.now(UTC).hour
+        if not (start_hour <= now_hour < end_hour):
+            logging.info(f"Skipped {symbol} - di luar jam trading")
+            return
+
         # Perbaikan di sini: gunakan get_price() bukan shared_price
         current_price = get_price(symbol)
         price = current_price if current_price is not None else row.get('close')
@@ -111,7 +130,11 @@ def on_signal(
             sl_dist = max(price * min_pct, atr_val * sl_atr_mult)
             stop_price = price - sl_dist if side == 'long' else price + sl_dist
 
-            qty = calculate_order_qty(symbol, price, stop_price, capital, risk_pct, leverage)
+            risk_use = risk_pct
+            conf = row.get('ml_confidence', 0)
+            if row.get('signal_mode') == 'swing' or conf >= params.get('high_confidence_th', 0.9):
+                risk_use *= 2
+            qty = calculate_order_qty(symbol, price, stop_price, capital, risk_use, leverage)
             qty = adjust_quantity_to_min(symbol, qty, price, filters)
 
             # Execute order
