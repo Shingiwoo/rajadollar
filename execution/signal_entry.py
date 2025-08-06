@@ -103,8 +103,14 @@ def on_signal(
             except Exception as e:
                 logging.warning(f"Gagal set leverage {symbol}: {e}")
 
-            # Calculate position size
-            stop_price = price * (0.99 if side == 'long' else 1.01)
+            # Hitung SL adaptif
+            atr_val = row.get('atr', 0) or 0
+            min_pct = params.get('sl_min_pct', 1.0) / 100
+            sl_atr_mult = params.get('sl_atr_multiplier', 1.5)
+            rr = params.get('tp_rr', 2.0)
+            sl_dist = max(price * min_pct, atr_val * sl_atr_mult)
+            stop_price = price - sl_dist if side == 'long' else price + sl_dist
+
             qty = calculate_order_qty(symbol, price, stop_price, capital, risk_pct, leverage)
             qty = adjust_quantity_to_min(symbol, qty, price, filters)
 
@@ -116,15 +122,14 @@ def on_signal(
             if order:
                 oid = order.get("orderId", str(int(time.time())))
                 now = datetime.now(UTC).isoformat()
-                sl = price * (0.99 if side == 'long' else 1.01)
-                tp = price * (1.02 if side == 'long' else 0.98)
+                sl = stop_price
+                tp = price + rr * sl_dist if side == 'long' else price - rr * sl_dist
                 trailing_enabled = params.get("trailing_enabled", True)
                 tr_off = params.get("trailing_offset_pct", 0.3)
                 trg_thr = params.get("trailing_trigger_pct", 1.0)
                 mode = params.get("trailing_mode", "pct")
                 atr_mult = params.get("atr_multiplier")
                 breakeven_pct = params.get("breakeven_trigger_pct")
-                atr_val = params.get("atr")
 
                 trade = Trade(
                     symbol=symbol,
