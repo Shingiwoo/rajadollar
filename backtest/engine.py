@@ -103,8 +103,13 @@ def run_backtest(
             allow_long = direction in ("long", "both")
             allow_short = direction in ("short", "both")
             if allow_long and row.get("long_signal"):
-                sl = price * (1 - 0.01)
-                tp = price * (1 + 0.02)
+                atr_val = row.get("atr", 0) or 0
+                min_pct = (config.get("sl_min_pct", 1.0) if config else 1.0) / 100
+                sl_atr_mult = config.get("sl_atr_multiplier", 1.5) if config else 1.5
+                rr = config.get("tp_rr", 2.0) if config else 2.0
+                sl_dist = max(price * min_pct, atr_val * sl_atr_mult)
+                sl = price - sl_dist
+                tp = price + rr * sl_dist
                 size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
@@ -143,8 +148,13 @@ def run_backtest(
                     active_trade.margin = margin
                     capital -= margin
             elif allow_short and row.get("short_signal"):
-                sl = price * (1 + 0.01)
-                tp = price * (1 - 0.02)
+                atr_val = row.get("atr", 0) or 0
+                min_pct = (config.get("sl_min_pct", 1.0) if config else 1.0) / 100
+                sl_atr_mult = config.get("sl_atr_multiplier", 1.5) if config else 1.5
+                rr = config.get("tp_rr", 2.0) if config else 2.0
+                sl_dist = max(price * min_pct, atr_val * sl_atr_mult)
+                sl = price + sl_dist
+                tp = price - rr * sl_dist
                 size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
