@@ -85,7 +85,8 @@ def optimize_strategy(
 
     cfg_strategy = load_strategy_config()
     if not cfg_strategy.get("enable_optimizer", True):
-        return cfg_strategy.get("manual_parameters", {}), {}
+        manual = cfg_strategy.get("manual_parameters", {})
+        return manual.get(symbol, manual.get("DEFAULT", {})), {}
 
     n_iter = n_iter or int(os.getenv("N_ITER", 30))
     n_jobs = n_jobs or int(os.getenv("N_JOBS", 2))

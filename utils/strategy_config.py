@@ -21,15 +21,31 @@ def load_strategy_config(path: str | None = None) -> Dict[str, Any]:
     cfg_path = path or STRATEGY_CFG_PATH
     if os.path.exists(cfg_path):
         with open(cfg_path) as f:
-            return json.load(f)
-    return {"enable_optimizer": True, "manual_parameters": DEFAULT_MANUAL_PARAMS.copy()}
+            cfg = json.load(f)
+    else:
+        cfg = {
+            "enable_optimizer": True,
+            "manual_parameters": {"DEFAULT": DEFAULT_MANUAL_PARAMS.copy()},
+        }
+
+    manual = cfg.get("manual_parameters", {})
+    # Jika format lama (single-object), bungkus jadi DEFAULT
+    if manual and all(not isinstance(v, dict) for v in manual.values()):
+        manual = {"DEFAULT": manual}
+    elif not manual:
+        manual = {"DEFAULT": DEFAULT_MANUAL_PARAMS.copy()}
+    cfg["manual_parameters"] = manual
+    return cfg
 
 
 def save_strategy_config(cfg: Dict[str, Any], path: str | None = None) -> None:
     cfg_path = path or STRATEGY_CFG_PATH
     os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
-    with open(cfg_path, "w") as f:
-        json.dump(cfg, f, indent=2)
+    try:
+        with open(cfg_path, "w") as f:
+            json.dump(cfg, f, indent=2)
+    except PermissionError as e:  # pragma: no cover
+        raise PermissionError(f"Gagal menyimpan ke {cfg_path}: {e}")
 
 
 def validate_manual_params(params: Dict[str, Any]) -> bool:
