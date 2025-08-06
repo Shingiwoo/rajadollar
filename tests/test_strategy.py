@@ -25,6 +25,8 @@ def test_generate_signals_long_short():
     }
     
     df = apply_indicators(df, config)
+    df.loc[df.index[-1], 'rsi'] = 50
+    df.loc[df.index[-1], 'macd'] = df['macd_signal'].iloc[-1] + 0.1
     df['ml_signal'] = [1] * len(df)
     df = generate_signals(df, config['score_threshold'], config=config)
 

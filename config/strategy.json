@@ -10,7 +10,10 @@
       "rsi_period": 14,
       "bb_window": 20,
       "atr_window": 14,
-      "score_threshold": 1.8
+      "score_threshold": 2.0,
+      "ml_weight": 1.0,
+      "use_crossover_filter": true,
+      "only_trend_15m": true
     }
   }
 }

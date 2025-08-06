@@ -83,3 +83,16 @@ def test_bb_width_filter(dummy_df, config):
     assert not df['long_signal'].iloc[-1]
     assert not df['short_signal'].iloc[-1]
     assert df['skip_reason'].iloc[-1] == "Volatilitas rendah"
+
+
+def test_crossover_filter(dummy_df, config):
+    config['use_crossover_filter'] = True
+    config['score_threshold'] = 2.0
+    config['hybrid_fallback'] = False
+    df = apply_indicators(dummy_df.copy(), config)
+    df.loc[df.index[-2], 'ema'] = df['sma'].iloc[-2] - 1
+    df.loc[df.index[-1], 'ema'] = df['sma'].iloc[-1] + 1
+    df.loc[df.index[-1], 'macd'] = df['macd_signal'].iloc[-1] + 0.1
+    df.loc[df.index[-1], 'rsi'] = 50
+    df = generate_signals(df, config['score_threshold'], config=config)
+    assert df['long_signal'].iloc[-1]
