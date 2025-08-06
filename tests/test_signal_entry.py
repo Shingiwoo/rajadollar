@@ -16,8 +16,11 @@ def test_on_signal_entry_trigger(monkeypatch):
     strategy_params = {
         symbol: {
             "trailing_enabled": True,
-            "trailing_offset_pct": 0.25,
-            "trailing_trigger_pct": 0.5,
+            "trailing_mode": "pct",
+            "atr_multiplier": 1.5,
+            "breakeven_trigger_pct": 0.5,
+            "trailing_offset_pct": 0.3,
+            "trailing_trigger_pct": 1.0,
             "sl": 0.95,
             "tp": 1.05
         }

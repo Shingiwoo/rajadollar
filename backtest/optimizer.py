@@ -32,10 +32,15 @@ DEFAULT_BASE = {
     "macd_slow": 26,
     "macd_signal": 9,
     "score_threshold": 1.8,
-    "trailing_offset_pct": 0.25,
-    "trailing_trigger_pct": 0.5,
-    "swing_trailing_offset_pct": 0.5,
-    "swing_trailing_trigger_pct": 1.0,
+    "trailing_mode": "pct",
+    "atr_multiplier": 1.5,
+    "breakeven_trigger_pct": 0.5,
+    "trailing_offset_pct": 0.3,
+    "trailing_trigger_pct": 1.0,
+    "swing_atr_multiplier": 3.0,
+    "swing_breakeven_trigger_pct": 1.0,
+    "swing_trailing_offset_pct": 0.6,
+    "swing_trailing_trigger_pct": 2.0,
 }
 
 

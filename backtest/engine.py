@@ -54,13 +54,21 @@ def run_backtest(
 
         if active_trade:
             hold += 1
+            step = (
+                active_trade.atr_multiplier
+                if active_trade.trailing_mode == "atr"
+                else active_trade.trailing_offset
+            )
             active_trade.trailing_sl = apply_trailing_sl(
                 price,
                 active_trade.entry_price,
                 active_trade.side,
                 active_trade.trailing_sl,
                 active_trade.trigger_threshold,
-                active_trade.trailing_offset,
+                step,
+                mode=active_trade.trailing_mode,
+                atr=row.get("atr"),
+                breakeven_pct=active_trade.breakeven_threshold,
             )
 
             long_ok, short_ok = confirm_by_higher_tf(df_slice, config)
@@ -100,15 +108,22 @@ def run_backtest(
                 size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
-                    trig = config.get("trailing_trigger_pct", 0.5) if config else 0.5
-                    off = config.get("trailing_offset_pct", 0.25) if config else 0.25
+                    trig = config.get("trailing_trigger_pct", 1.0) if config else 1.0
+                    off = config.get("trailing_offset_pct", 0.3) if config else 0.3
+                    mode = config.get("trailing_mode", "pct") if config else "pct"
+                    atr_mult = config.get("atr_multiplier") if config else None
+                    brk = config.get("breakeven_trigger_pct") if config else None
                     if row.get("signal_mode") == "swing":
                         if config:
                             trig = config.get("swing_trailing_trigger_pct", trig * 2)
                             off = config.get("swing_trailing_offset_pct", off * 2)
+                            brk = config.get("swing_breakeven_trigger_pct", (brk * 2 if brk else None))
+                            atr_mult = config.get("swing_atr_multiplier", atr_mult * 2 if atr_mult else None)
                         else:
                             trig *= 2
                             off *= 2
+                            brk = brk * 2 if brk else None
+                            atr_mult = atr_mult * 2 if atr_mult else None
                     active_trade = Trade(
                         symbol,
                         "long",
@@ -120,6 +135,10 @@ def run_backtest(
                         trailing_sl=sl,
                         trailing_offset=off,
                         trigger_threshold=trig,
+                        trailing_mode=mode,
+                        atr_multiplier=atr_mult,
+                        breakeven_threshold=brk,
+                        atr=row.get("atr"),
                     )
                     active_trade.margin = margin
                     capital -= margin
@@ -129,15 +148,22 @@ def run_backtest(
                 size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
-                    trig = config.get("trailing_trigger_pct", 0.5) if config else 0.5
-                    off = config.get("trailing_offset_pct", 0.25) if config else 0.25
+                    trig = config.get("trailing_trigger_pct", 1.0) if config else 1.0
+                    off = config.get("trailing_offset_pct", 0.3) if config else 0.3
+                    mode = config.get("trailing_mode", "pct") if config else "pct"
+                    atr_mult = config.get("atr_multiplier") if config else None
+                    brk = config.get("breakeven_trigger_pct") if config else None
                     if row.get("signal_mode") == "swing":
                         if config:
                             trig = config.get("swing_trailing_trigger_pct", trig * 2)
                             off = config.get("swing_trailing_offset_pct", off * 2)
+                            brk = config.get("swing_breakeven_trigger_pct", (brk * 2 if brk else None))
+                            atr_mult = config.get("swing_atr_multiplier", atr_mult * 2 if atr_mult else None)
                         else:
                             trig *= 2
                             off *= 2
+                            brk = brk * 2 if brk else None
+                            atr_mult = atr_mult * 2 if atr_mult else None
                     active_trade = Trade(
                         symbol,
                         "short",
@@ -149,6 +175,10 @@ def run_backtest(
                         trailing_sl=sl,
                         trailing_offset=off,
                         trigger_threshold=trig,
+                        trailing_mode=mode,
+                        atr_multiplier=atr_mult,
+                        breakeven_threshold=brk,
+                        atr=row.get("atr"),
                     )
                     active_trade.margin = margin
                     capital -= margin
