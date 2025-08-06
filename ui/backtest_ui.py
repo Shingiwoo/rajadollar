@@ -30,52 +30,16 @@ enable_optimizer = st.sidebar.checkbox(
     "Aktifkan Optimizer", cfg_strategy.get("enable_optimizer", True)
 )
 cfg_strategy["enable_optimizer"] = enable_optimizer
-if not enable_optimizer:
-    st.sidebar.subheader("Parameter Manual")
-    manual = cfg_strategy.get("manual_parameters", {})
-    ema_period = st.sidebar.number_input(
-        "EMA Period", 1, 200, manual.get("ema_period", 5)
+try:
+    save_strategy_config(cfg_strategy)
+except PermissionError as e:
+    logging.warning(str(e))
+    st.sidebar.warning(
+        "Gagal menyimpan config/strategy.json (permission denied)."
     )
-    sma_period = st.sidebar.number_input(
-        "SMA Period", 1, 200, manual.get("sma_period", 22)
+    st.sidebar.info(
+        "Perbaiki permission dengan: sudo chown -R 1000:1000 config; sudo chmod -R u+w config"
     )
-    macd_fast = st.sidebar.number_input(
-        "MACD Fast", 1, 200, manual.get("macd_fast", 12)
-    )
-    macd_slow = st.sidebar.number_input(
-        "MACD Slow", 1, 200, manual.get("macd_slow", 26)
-    )
-    macd_signal = st.sidebar.number_input(
-        "MACD Signal", 1, 200, manual.get("macd_signal", 9)
-    )
-    rsi_period = st.sidebar.number_input(
-        "RSI Period", 1, 200, manual.get("rsi_period", 14)
-    )
-    bb_window = st.sidebar.number_input(
-        "BB Window", 1, 200, manual.get("bb_window", 20)
-    )
-    atr_window = st.sidebar.number_input(
-        "ATR Window", 1, 200, manual.get("atr_window", 14)
-    )
-    score_threshold = st.sidebar.number_input(
-        "Ambang Skor", 0.1, 5.0, manual.get("score_threshold", 1.8), 0.1
-    )
-    if st.sidebar.button("Simpan Param Manual"):
-        manual_new = {
-            "ema_period": int(ema_period),
-            "sma_period": int(sma_period),
-            "macd_fast": int(macd_fast),
-            "macd_slow": int(macd_slow),
-            "macd_signal": int(macd_signal),
-            "rsi_period": int(rsi_period),
-            "bb_window": int(bb_window),
-            "atr_window": int(atr_window),
-            "score_threshold": float(score_threshold),
-        }
-        validate_manual_params(manual_new)
-        cfg_strategy["manual_parameters"] = manual_new
-        st.sidebar.success("Tersimpan")
-save_strategy_config(cfg_strategy)
 
 # Hanya inisialisasi sekali, sebelum form!
 for k, v in {
@@ -139,6 +103,72 @@ st.download_button(
 )
 
 simbol_terpilih = st.multiselect("Pilih Simbol", SEMUA_SIMBOL, default=SEMUA_SIMBOL[:3])
+if not enable_optimizer and simbol_terpilih:
+    st.sidebar.subheader("Parameter Manual")
+    manual_cfg = cfg_strategy.get("manual_parameters", {})
+    input_params: dict[str, dict] = {}
+    for s in simbol_terpilih:
+        param = manual_cfg.get(s, manual_cfg.get("DEFAULT", {}))
+        with st.sidebar.expander(s):
+            ema_period = st.number_input(
+                "EMA Period", 1, 200, int(param.get("ema_period", 5)), key=f"{s}_ema"
+            )
+            sma_period = st.number_input(
+                "SMA Period", 1, 200, int(param.get("sma_period", 22)), key=f"{s}_sma"
+            )
+            macd_fast = st.number_input(
+                "MACD Fast", 1, 200, int(param.get("macd_fast", 12)), key=f"{s}_macdf"
+            )
+            macd_slow = st.number_input(
+                "MACD Slow", 1, 200, int(param.get("macd_slow", 26)), key=f"{s}_macds"
+            )
+            macd_signal = st.number_input(
+                "MACD Signal", 1, 200, int(param.get("macd_signal", 9)), key=f"{s}_macdsig"
+            )
+            rsi_period = st.number_input(
+                "RSI Period", 1, 200, int(param.get("rsi_period", 14)), key=f"{s}_rsi"
+            )
+            bb_window = st.number_input(
+                "BB Window", 1, 200, int(param.get("bb_window", 20)), key=f"{s}_bb"
+            )
+            atr_window = st.number_input(
+                "ATR Window", 1, 200, int(param.get("atr_window", 14)), key=f"{s}_atr"
+            )
+            score_threshold = st.number_input(
+                "Ambang Skor",
+                0.1,
+                5.0,
+                float(param.get("score_threshold", 1.8)),
+                0.1,
+                key=f"{s}_score",
+            )
+        input_params[s] = {
+            "ema_period": int(ema_period),
+            "sma_period": int(sma_period),
+            "macd_fast": int(macd_fast),
+            "macd_slow": int(macd_slow),
+            "macd_signal": int(macd_signal),
+            "rsi_period": int(rsi_period),
+            "bb_window": int(bb_window),
+            "atr_window": int(atr_window),
+            "score_threshold": float(score_threshold),
+        }
+    if st.sidebar.button("Simpan Param Manual"):
+        for p in input_params.values():
+            validate_manual_params(p)
+        manual_cfg.update(input_params)
+        cfg_strategy["manual_parameters"] = manual_cfg
+        try:
+            save_strategy_config(cfg_strategy)
+            st.sidebar.success("Tersimpan")
+        except PermissionError as e:
+            logging.warning(str(e))
+            st.sidebar.warning(
+                "Gagal menyimpan config/strategy.json (permission denied)."
+            )
+            st.sidebar.info(
+                "Perbaiki permission dengan: sudo chown -R 1000:1000 config; sudo chmod -R u+w config"
+            )
 kol1, kol2 = st.columns(2)
 with kol1:
     tanggal_mulai = st.date_input("Tanggal Mulai", dt.date.today() - dt.timedelta(days=1))
@@ -324,7 +354,8 @@ if jalankan:
                             st.error(f"Optimasi {simbol} gagal: {e}")
                             continue
                 else:
-                    params = cfg_strategy.get("manual_parameters", {})
+                    manual_cfg = cfg_strategy.get("manual_parameters", {})
+                    params = manual_cfg.get(simbol, manual_cfg.get("DEFAULT", {}))
             if not params:
                 continue
             path = f"data/training_data/{simbol}_{tf}.csv"

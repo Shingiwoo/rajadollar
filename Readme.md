@@ -182,11 +182,13 @@ Konfigurasi tambahan tersedia di `config/strategy.json`:
 ```
 {
   "enable_optimizer": true,
-  "manual_parameters": { ... }
+  "manual_parameters": {
+    "DEFAULT": { ... }
+  }
 }
 ```
 
-Jika `enable_optimizer` bernilai `false`, proses optimasi dilewati dan nilai pada `manual_parameters` dipakai. Anda perlu mengisi parameter indikator secara manual lewat UI backtest. Bila diaktifkan, backend akan mencari kombinasi optimal secara otomatis (proses ini dapat memakan waktu dan CPU).
+Mulai sekarang, parameter manual indikator bisa diatur spesifik untuk setiap simbol. Form UI akan otomatis menyesuaikan. Jika `enable_optimizer` bernilai `false`, proses optimasi dilewati dan setiap simbol menggunakan parameter manual masing-masing. Bila diaktifkan, backend akan mencari kombinasi optimal secara otomatis (proses ini dapat memakan waktu dan CPU).
 
 Jika penyimpanan ke `config/strategy_params.json` gagal karena izin, parameter optimal tetap tersedia di memori untuk sesi berjalan. Unduh manual atau perbaiki izin dengan:
 
