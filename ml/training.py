@@ -22,6 +22,7 @@ import time
 from notifications.notifier import kirim_notifikasi_ml_training
 from utils.logger import LOG_DIR
 from utils.config_loader import load_global_config
+from .feature_generator import prepare_features
 
 DATA_DIR = Path("data/training_data")
 MODEL_DIR = Path("models")
@@ -42,13 +43,23 @@ def _load_dataset(symbol: str, timeframe: str) -> pd.DataFrame | None:
         print(f"[ML] Data {path} tidak ditemukan")
         return None
     try:
-       df = pd.read_csv(path)
+        df = pd.read_csv(path)
     except Exception as e:
-            logging.error(f"[ML] Error membaca {path}: {e}")
-            return None
+        logging.error(f"[ML] Error membaca {path}: {e}")
+        return None
     if "label" not in df.columns:
         print(f"[ML] Data {path} tidak memiliki kolom 'label'")
         return None
+
+    missing = [c for c in FEATURE_COLS if c not in df.columns]
+    if missing:
+        df = prepare_features(df)
+        missing = [c for c in FEATURE_COLS if c not in df.columns]
+        if missing:
+            raise ValueError(
+                f"Kolom fitur berikut tidak ditemukan di DataFrame: {missing}"
+            )
+
     df = df.dropna(subset=FEATURE_COLS + ["label"])
     df = df[df["label"].isin([0, 1])]
     df["label"] = df["label"].astype(int)
@@ -98,7 +109,11 @@ def train_model(symbol: str, timeframe: str | None = None) -> float:
     if not _ensure_labeled(symbol, tf):
         print(f"[ML] Data {symbol} belum siap, training dilewati")
         return 0.0
-    df = _load_dataset(symbol, tf)
+    try:
+        df = _load_dataset(symbol, tf)
+    except ValueError as e:
+        logging.error(f"[ML] {e}")
+        return 0.0
     if df is None:
         return 0.0
 
