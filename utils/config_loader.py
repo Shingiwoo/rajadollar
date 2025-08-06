@@ -2,7 +2,11 @@ import json
 from pathlib import Path
 
 CONFIG_PATH = Path("config/global_config.json")
-DEFAULT_CFG = {"selected_timeframe": "5m"}
+DEFAULT_CFG = {
+    "selected_timeframe": "5m",
+    "risk_per_trade": 1.0,
+    "risk_per_trade_swing": 2.0,
+}
 
 def load_global_config() -> dict:
     if CONFIG_PATH.exists():

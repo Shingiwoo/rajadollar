@@ -214,6 +214,14 @@ def generate_signals(df, score_threshold=1.8, symbol: str = "", config=None):
         df['ml_confidence'] = 0.0
     df = generate_ml_signal(df, symbol)
 
+    # Skip bila volatilitas (BB width) terlalu kecil
+    min_bb = config.get('min_bb_width', 0.005)
+    if df['bb_width'].iloc[-1] < min_bb:
+        df.loc[df.index[-1], 'long_signal'] = False
+        df.loc[df.index[-1], 'short_signal'] = False
+        df.loc[df.index[-1], 'skip_reason'] = 'BB width rendah'
+        return df
+
     # Long signal conditions
     cond_long1 = (df['ema'] > df['sma']) & (df['macd'] > df['macd_signal'])
     cond_long2 = (df['rsi'] > long_lower) & (df['rsi'] < long_upper)

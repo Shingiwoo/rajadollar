@@ -22,7 +22,10 @@ def run_backtest(
     config: dict | None = None,
     timeframe: str = "5m",
     risk_per_trade: float = 1.0,
+    risk_per_trade_swing: float | None = None,
     leverage: int = 20,
+    max_trades_per_day: int = 4,
+    min_bb_width: float = 0.005,
 ):
     """Jalankan backtest bar-per-bar secara modular.
 
@@ -40,10 +43,15 @@ def run_backtest(
 
     capital = initial_capital
     risk_pct = risk_per_trade / 100
+    risk_pct_swing = (
+        (risk_per_trade_swing if risk_per_trade_swing is not None else risk_per_trade)
+        / 100
+    )
     trades: list[Trade] = []
     active_trade: Trade | None = None
     equity: list[float] = []
     hold = 0
+    daily_trades: dict[str, int] = {}
 
     for i in range(len(df)):
         df_slice = df.iloc[: i + 1].copy()
@@ -51,6 +59,11 @@ def run_backtest(
         row = df_slice.iloc[-1]
         price = row["close"]
         time = df_slice.index[-1].isoformat()
+
+        # Filter volatilitas rendah
+        if row.get("bb_width", 0) < min_bb_width:
+            df.loc[df_slice.index[-1], "skip_reason"] = "BB width rendah"
+            continue
 
         if active_trade:
             hold += 1
@@ -100,6 +113,11 @@ def run_backtest(
                 hold = 0
 
         if not active_trade:
+            current_day = df_slice.index[-1].date().isoformat()
+            if daily_trades.get(current_day, 0) >= max_trades_per_day:
+                df.loc[df_slice.index[-1], "skip_reason"] = "Max trade harian"
+                continue
+
             allow_long = direction in ("long", "both")
             allow_short = direction in ("short", "both")
             if allow_long and row.get("long_signal"):
@@ -110,7 +128,8 @@ def run_backtest(
                 sl_dist = max(price * min_pct, atr_val * sl_atr_mult)
                 sl = price - sl_dist
                 tp = price + rr * sl_dist
-                size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
+                risk_use = risk_pct_swing if row.get("signal_mode") == "swing" else risk_pct
+                size = calculate_order_qty(symbol, price, sl, capital, risk_use, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
                     trig = config.get("trailing_trigger_pct", 1.0) if config else 1.0
@@ -147,6 +166,7 @@ def run_backtest(
                     )
                     active_trade.margin = margin
                     capital -= margin
+                    daily_trades[current_day] = daily_trades.get(current_day, 0) + 1
             elif allow_short and row.get("short_signal"):
                 atr_val = row.get("atr", 0) or 0
                 min_pct = (config.get("sl_min_pct", 1.0) if config else 1.0) / 100
@@ -155,7 +175,8 @@ def run_backtest(
                 sl_dist = max(price * min_pct, atr_val * sl_atr_mult)
                 sl = price + sl_dist
                 tp = price - rr * sl_dist
-                size = calculate_order_qty(symbol, price, sl, capital, risk_pct, leverage)
+                risk_use = risk_pct_swing if row.get("signal_mode") == "swing" else risk_pct
+                size = calculate_order_qty(symbol, price, sl, capital, risk_use, leverage)
                 margin = price * size / leverage
                 if size > 0 and margin <= capital:
                     trig = config.get("trailing_trigger_pct", 1.0) if config else 1.0
@@ -192,6 +213,7 @@ def run_backtest(
                     )
                     active_trade.margin = margin
                     capital -= margin
+                    daily_trades[current_day] = daily_trades.get(current_day, 0) + 1
 
         if active_trade:
             if active_trade.side == "long":

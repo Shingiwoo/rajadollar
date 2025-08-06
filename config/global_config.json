@@ -1,3 +1,5 @@
 {
-  "selected_timeframe": "5m"
+  "selected_timeframe": "5m",
+  "risk_per_trade": 1.0,
+  "risk_per_trade_swing": 2.0
 }

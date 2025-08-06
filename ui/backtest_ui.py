@@ -25,13 +25,14 @@ for k, v in {
     "tf": "5m",
     "initial_capital": 1000,
     "risk_per_trade": 1.0,
+    "risk_swing_pct": 2.0,
     "leverage": 20,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 with st.form("param_backtest"):
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     with col1:
         tf = st.selectbox(
             "Pilih Timeframe", ["1m", "5m", "15m"],
@@ -44,11 +45,27 @@ with st.form("param_backtest"):
         )
     with col3:
         risk_per_trade = st.number_input(
-            "Risk per Trade (%)", min_value=0.1, max_value=10.0, value=st.session_state["risk_per_trade"], key="risk_per_trade"
+            "Risk per Trade (%)",
+            min_value=0.1,
+            max_value=10.0,
+            value=st.session_state["risk_per_trade"],
+            key="risk_per_trade",
         )
     with col4:
+        risk_swing_pct = st.number_input(
+            "Risk Swing (%)",
+            min_value=0.1,
+            max_value=10.0,
+            value=st.session_state["risk_swing_pct"],
+            key="risk_swing_pct",
+        )
+    with col5:
         leverage = st.number_input(
-            "Leverage", min_value=1, max_value=125, value=st.session_state["leverage"], key="leverage"
+            "Leverage",
+            min_value=1,
+            max_value=125,
+            value=st.session_state["leverage"],
+            key="leverage",
         )
     submit_param = st.form_submit_button("Set Parameter")
 
@@ -57,6 +74,7 @@ with st.form("param_backtest"):
 tf = st.session_state["tf"]
 initial_capital = st.session_state["initial_capital"]
 risk_per_trade = st.session_state["risk_per_trade"]
+risk_swing_pct = st.session_state["risk_swing_pct"]
 leverage = st.session_state["leverage"]
 
 SYMBOL_FILE = "config/symbols.txt"
@@ -301,7 +319,10 @@ if jalankan:
                     config=cfg_sym,
                     score_threshold=cfg_sym.get("score_threshold", 1.8),
                     risk_per_trade=risk_per_trade,
+                    risk_per_trade_swing=risk_swing_pct,
                     leverage=leverage,
+                    min_bb_width=cfg_sym.get("min_bb_width", 0.005),
+                    max_trades_per_day=cfg_sym.get("max_trades_per_day", 4),
                 )
                 metrik, kurva = calculate_metrics(trades, equity)
 
