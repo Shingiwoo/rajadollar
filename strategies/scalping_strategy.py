@@ -2,17 +2,17 @@ import pandas as pd
 from ta.trend import EMAIndicator, SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands, AverageTrueRange
-from sklearn.base import ClassifierMixin
 import pickle
 import os
 import logging
 import numpy as np
+from typing import Any
 
 from utils.config_loader import load_global_config
 from utils.historical_data import MAX_DAYS
 
 MODEL_PATH = "models/model_scalping.pkl"
-_ml_models: dict[str, ClassifierMixin | None] = {}
+_ml_models: dict[str, Any] = {}
 _auto_trained: set[str] = set()
 
 def _get_model_path(symbol: str, timeframe: str | None = None) -> str:
@@ -24,7 +24,7 @@ def _get_model_path(symbol: str, timeframe: str | None = None) -> str:
         else MODEL_PATH
     )
 
-def load_ml_model(symbol: str, path: str | None = None, timeframe: str | None = None) -> ClassifierMixin | None:
+def load_ml_model(symbol: str, path: str | None = None, timeframe: str | None = None) -> Any:
     """Muat model ML per simbol sekali saat startup."""
     global _ml_models, MODEL_PATH, _auto_trained
     if path:
@@ -46,11 +46,13 @@ def load_ml_model(symbol: str, path: str | None = None, timeframe: str | None = 
         logging.info(f"Auto-training model untuk {symbol}...")
         try:
             from ml import historical_trainer
+            cfg = load_global_config()
             end = pd.Timestamp.utcnow().date().isoformat()
+            tf = timeframe or cfg.get("selected_timeframe", "5m")
             start = (
                 pd.Timestamp.utcnow() - pd.Timedelta(days=MAX_DAYS.get(tf, 30))
             ).date().isoformat()
-            historical_trainer.train_from_history(symbol, tf, start, end)
+            historical_trainer.train_from_history(symbol, timeframe, start, end)
         except Exception as e:  # pragma: no cover - training bisa gagal
             logging.error(f"Auto-training gagal: {e}")
         _auto_trained.add(symbol)

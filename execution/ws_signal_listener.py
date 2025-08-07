@@ -12,6 +12,7 @@ from strategies.scalping_strategy import (
 from ml.predictor import predict_ml
 from database.signal_logger import log_signal, init_db
 import utils.bot_flags as bot_flags
+from binance.client import Client
 from notifications.notifier import laporkan_error, kirim_notifikasi_telegram
 
 log = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ def _ensure_loop() -> asyncio.AbstractEventLoop:
 signal_callbacks = {}
 ws_manager: BinanceSocketManager | None = None
 async_client: AsyncClient | None = None
-client_global = None
+client_global: Client | None = None
 _tasks: dict[str, asyncio.Task] = {}
 
 

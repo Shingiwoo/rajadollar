@@ -147,7 +147,7 @@ def on_signal(
                 now = datetime.now(UTC).isoformat()
                 sl = stop_price
                 tp = price + rr * sl_dist if side == 'long' else price - rr * sl_dist
-                trailing_enabled = params.get("trailing_enabled", True)
+                trailing_enabled = bool(params.get("trailing_enabled", True))
                 tr_off = params.get("trailing_offset_pct", 0.3)
                 trg_thr = params.get("trailing_trigger_pct", 1.0)
                 mode = params.get("trailing_mode", "pct")
@@ -166,7 +166,7 @@ def on_signal(
                     order_id=oid,
                     trailing_offset=tr_off,
                     trigger_threshold=trg_thr,
-                    trailing_mode=mode,
+                    trailing_mode=str(mode),
                     atr_multiplier=atr_mult,
                     breakeven_threshold=breakeven_pct,
                     atr=atr_val,

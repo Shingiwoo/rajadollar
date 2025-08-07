@@ -1,6 +1,7 @@
 import math
 import time
 from typing import Optional, Dict, Any
+from binance.error import ClientError
 
 try:
     from binance.enums import (

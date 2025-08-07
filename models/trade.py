@@ -23,6 +23,7 @@ class Trade:
     breakeven_threshold: float | None = None
     atr: float | None = None
     trailing_enabled: bool = True
+    margin: float = 0.0
 
     def to_dict(self):
         return self.__dict__

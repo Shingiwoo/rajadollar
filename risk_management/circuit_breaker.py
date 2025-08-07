@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, date
-from typing import Optional
+from typing import Optional, Set
 import pandas as pd
 import threading
 
@@ -14,16 +14,25 @@ class CircuitBreaker:
         self.loss_limit = loss_limit
         self.last_check_date: Optional[date] = None
         self.cumulative_loss = 0.0
+        self.last_seen_ids: Set[str] = set()
 
     def check(self, client, symbol_steps, stop_event: threading.Event) -> bool:
         today = datetime.now(timezone.utc).date()
         if today != self.last_check_date:
             self.last_check_date = today
             self.cumulative_loss = 0.0
+            self.last_seen_ids.clear()
 
         new_trades = self._get_today_trades()
         if not new_trades.empty:
-            self.cumulative_loss += new_trades['pnl'].sum()
+            if 'order_id' not in new_trades.columns:
+                new_trades['order_id'] = new_trades['entry_time'].astype(str)  # fallback id
+
+            unseen_trades = new_trades[~new_trades['order_id'].isin(self.last_seen_ids)]
+
+            if not unseen_trades.empty:
+                self.cumulative_loss += unseen_trades['pnl'].sum()
+                self.last_seen_ids.update(unseen_trades['order_id'].tolist())
 
         if self.cumulative_loss <= self.loss_limit:
             self._trigger_actions(client, symbol_steps, stop_event)
@@ -39,18 +48,26 @@ class CircuitBreaker:
         return df[df['entry_date'] == today]
 
     def _trigger_actions(self, client, symbol_steps, stop_event: threading.Event):
+        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         kirim_notifikasi_telegram(
-            f"🔴 Circuit Breaker Activated!\nLoss: {self.cumulative_loss:.2f} USDT"
+            f"🔴 Circuit Breaker Activated at {now} UTC\nLoss: {self.cumulative_loss:.2f} USDT"
         )
         stop_event.set()
-        if hasattr(ws_signal_listener, 'ws_manager'):
-            ws_signal_listener.ws_manager.stop()
+
+        try:
+            manager = getattr(ws_signal_listener, 'ws_manager', None)
+            if manager and hasattr(manager, 'stop'):
+                manager.stop()
+        except Exception as e:
+            kirim_notifikasi_telegram(f"⚠️ Gagal stop ws_manager: {e}")
 
         for trade in load_state():
-            safe_close_order_market(
+            result = safe_close_order_market(
                 client,
                 trade['symbol'],
                 'SELL' if trade['side'] == 'long' else 'BUY',
                 trade['size'],
                 symbol_steps,
             )
+            if not result:
+                kirim_notifikasi_telegram(f"❌ Gagal close posisi {trade['symbol']}")
