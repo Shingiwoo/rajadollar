@@ -1,7 +1,7 @@
 import math
 import time
 from typing import Optional, Dict, Any
-from binance.error import ClientError
+from binance.exceptions import BinanceAPIException
 
 try:
     from binance.enums import (
@@ -174,7 +174,7 @@ def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippag
             )
             if order:
                 return order
-        except ClientError as e:
+        except BinanceAPIException as e:
             if "2021" in str(e) or "2019" in str(e):
                 print(f"[BinanceError] {e}, retry {attempt+1}/{retries}")
                 time.sleep(1)
