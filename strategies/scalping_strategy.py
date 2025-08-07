@@ -158,7 +158,7 @@ def confirm_by_higher_tf(df, config=None):
         'low': 'min',
         'close': 'last',
     }
-    df15 = df.resample('15T').agg(ohlc).dropna()
+    df15 = df.resample('15min').agg(ohlc).dropna()
     if df15.empty:
         return True, True
 

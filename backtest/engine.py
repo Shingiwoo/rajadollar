@@ -15,7 +15,7 @@ from models.trade import Trade
 
 def run_backtest(
     df: pd.DataFrame,
-    initial_capital: float = 1000,
+    initial_capital: float = 22,
     score_threshold: float = 2.0,
     symbol: str = "",
     direction: str = "both",
@@ -24,7 +24,7 @@ def run_backtest(
     config: dict | None = None,
     timeframe: str = "5m",
     risk_per_trade: float = 1.0,
-    leverage: int = 20,
+    leverage: int = 14,
 ):
     """Jalankan backtest bar-per-bar secara modular.
 
