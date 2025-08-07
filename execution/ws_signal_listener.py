@@ -8,8 +8,8 @@ from strategies.scalping_strategy import (
     apply_indicators,
     generate_signals_legacy,
     generate_signals_pythontrading_style,
-    generate_ml_signal,
 )
+from ml.predictor import predict_ml
 from database.signal_logger import log_signal, init_db
 import utils.bot_flags as bot_flags
 from notifications.notifier import laporkan_error, kirim_notifikasi_telegram
@@ -77,9 +77,13 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                     df = apply_indicators(df, strategy_params[symbol])
                     params = strategy_params[symbol]
                     try:
-                        df = generate_ml_signal(df, symbol)
+                        ml_sig, ml_conf = predict_ml(df, symbol)
+                        df.loc[df.index[-1], 'ml_signal'] = ml_sig
+                        df.loc[df.index[-1], 'ml_confidence'] = ml_conf
                     except Exception as e:  # pragma: no cover - fallback jika ML gagal
                         log.warning(f"ML signal {symbol} gagal: {e}")
+                        df.loc[df.index[-1], 'ml_signal'] = 1
+                        df.loc[df.index[-1], 'ml_confidence'] = 0.0
                     df = generate_signals_pythontrading_style(df, params)
                     signal_result = df.iloc[-1]
                     if signal_result.get("long_signal") or signal_result.get("short_signal"):
