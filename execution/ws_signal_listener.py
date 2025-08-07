@@ -38,6 +38,9 @@ _tasks: dict[str, asyncio.Task] = {}
 def _higher_tf_trend(symbol: str, params: dict) -> tuple[bool, bool]:
     """Validasi arah tren pada timeframe 1H dan 4H."""
     long_ok = short_ok = False
+    if client_global is None:
+        log.warning(f"[TF] Binance client_global belum siap, skip filter higher TF untuk {symbol}")
+        return True, True  # fallback: tidak blok sinyal
     try:
         df1h = fetch_latest_data(symbol, client_global, interval="1h", limit=100)
         df1h = apply_indicators(df1h, params)
@@ -69,6 +72,9 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
         logging.info(f"\ud83d\udcf1 {symbol} Loop aktif - menunggu sinyal....")
         while True:
             try:
+                if client_global is None:
+                    log.warning(f"[WS] Binance client belum tersedia, abaikan sinyal {symbol}")
+                    continue
                 msg = await s.recv()
                 if st.session_state.get("stop_signal"):
                     break
