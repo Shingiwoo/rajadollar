@@ -1,12 +1,6 @@
 import time
 import logging
 from binance.exceptions import BinanceAPIException
-# try:
-#     from binance.exceptions import BinanceAPIException
-# except ModuleNotFoundError:
-#     class BinanceAPIException(Exception):  # fallback
-#         """Fallback ClientError ketika modul binance tidak tersedia."""
-#         pass
 
 _last_api_call = 0
 
