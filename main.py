@@ -112,7 +112,7 @@ st.sidebar.download_button("📤 Download strategy_params.json", json.dumps(stra
 multi_symbols = st.sidebar.multiselect("Pilih Symbols", list(strategy_params.keys()), default=list(strategy_params.keys()))
 auto_sync = st.sidebar.checkbox("Sync Modal Binance", True)
 leverage = st.sidebar.slider("Leverage", 1, 50, 20)
-risk_pct = st.sidebar.number_input("Risk per Trade (%) (scalp)", 0.01, 1.0, 0.01)
+risk_pct = st.sidebar.number_input("Risk per Trade (%) (scalp)", 1.00, 10.0, 1.00)
 max_pos = st.sidebar.slider("Max Posisi", 1, 8, 4)
 max_sym = st.sidebar.slider("Max Symbols Concurrent", 1, 4, 2)
 max_slip = st.sidebar.number_input("Max Slippage (%)", 0.1, 1.0, 0.5)
