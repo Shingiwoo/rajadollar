@@ -12,21 +12,7 @@ services:
       - ./config:/app/config
       - ./logs:/app/logs
       - ./reports:/app/reports
-
-  rajadollar-testnet:
-    build: .
-    command: streamlit run main.py --server.port=8589 --server.headless=true
-    ports:
-      - "8589:8589"
-    env_file: .env
-    restart: unless-stopped
-    volumes:
-      - ./data:/app/data
-      - ./models:/app/models
-      - ./config:/app/config
-      - ./logs:/app/logs
-      - ./reports:/app/reports
-
+      
   rajadollar-backtest:
     build: .
     command: streamlit run ui/backtest_ui.py --server.port=8590 --server.headless=true
