@@ -14,6 +14,7 @@ from database.signal_logger import log_signal, init_db
 import utils.bot_flags as bot_flags
 from notifications.notifier import laporkan_error, kirim_notifikasi_telegram
 
+log = logging.getLogger(__name__)
 _loop: asyncio.AbstractEventLoop | None = None
 
 def _ensure_loop() -> asyncio.AbstractEventLoop:
@@ -75,18 +76,20 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                     df = fetch_latest_data(symbol, client_global, interval=timeframe, limit=100)
                     df = apply_indicators(df, strategy_params[symbol])
                     params = strategy_params[symbol]
-                    if params.get("signal_engine", "legacy") == "pythontrading_style":
+                    try:
                         df = generate_ml_signal(df, symbol)
-                        df = generate_signals_pythontrading_style(df, params)
-                    else:
-                        df = generate_signals_legacy(
-                            df,
-                            params["score_threshold"],
-                            symbol,
-                            params,
+                    except Exception as e:  # pragma: no cover - fallback jika ML gagal
+                        log.warning(f"ML signal {symbol} gagal: {e}")
+                    df = generate_signals_pythontrading_style(df, params)
+                    signal_result = df.iloc[-1]
+                    if signal_result.get("long_signal") or signal_result.get("short_signal"):
+                        tipe = "LONG" if signal_result.get("long_signal") else "SHORT"
+                        log.info(
+                            f"[LIVE] Sinyal {symbol} ➜ {tipe} | Skor: {signal_result.get('score', '-')}"
                         )
+                        log.info(f"[CHECK] signal_result: {signal_result}")
                     long_ok, short_ok = _higher_tf_trend(symbol, strategy_params[symbol])
-                    last = df.iloc[-1]
+                    last = signal_result
                     last_long = bool(last.get("long_signal")) and long_ok
                     last_short = bool(last.get("short_signal")) and short_ok
                     last["long_signal"], last["short_signal"] = last_long, last_short
