@@ -1,12 +1,12 @@
 import time
 import logging
-
-try:
-    from binance.error import ClientError
-except ModuleNotFoundError:
-    class ClientError(Exception):
-        """Fallback ClientError ketika modul binance tidak tersedia."""
-        pass
+from binance.exceptions import BinanceAPIException
+# try:
+#     from binance.exceptions import BinanceAPIException
+# except ModuleNotFoundError:
+#     class BinanceAPIException(Exception):  # fallback
+#         """Fallback ClientError ketika modul binance tidak tersedia."""
+#         pass
 
 _last_api_call = 0
 
@@ -24,7 +24,7 @@ def safe_api_call_with_retry(func, *args, retries=3, delay=2, **kwargs):
     for attempt in range(retries):
         try:
             return safe_api_call(func, *args, **kwargs)
-        except ClientError as e:
+        except BinanceAPIException as e:
             if "429" in str(e):
                 logging.warning(
                     f"[RateLimit] percobaan {attempt+1}/{retries} terkena 429: {e}"
