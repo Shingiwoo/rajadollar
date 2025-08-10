@@ -62,6 +62,7 @@ def test_no_entry_logs(dummy_df, config, caplog):
 
 def test_filter_trend_15m(monkeypatch, dummy_df, config):
     config['only_trend_15m'] = True
+    config['score_threshold'] = 0.0
     df = apply_indicators(dummy_df.copy(), config)
 
     def fake_confirm(df, config=None):
@@ -112,3 +113,40 @@ def test_pythontrading_style(dummy_df, config):
     df = generate_signals_pythontrading_style(df, params)
     assert df['long_signal'].iloc[-1]
     assert not df['short_signal'].iloc[-1]
+
+
+def test_no_cross_macd_rsi_ml_enough(dummy_df, config, monkeypatch):
+    config['use_crossover_filter'] = True
+    config['score_threshold'] = 2.0
+    config['hybrid_fallback'] = True
+    df = apply_indicators(dummy_df.copy(), config)
+    df.loc[df.index[-2], 'ema'] = df['sma'].iloc[-2] + 1
+    df.loc[df.index[-1], 'ema'] = df['sma'].iloc[-1] + 1
+    df.loc[df.index[-1], 'macd'] = df['macd_signal'].iloc[-1] + 0.1
+    df.loc[df.index[-1], 'rsi'] = 50
+    df['ml_signal'] = 1
+    df['ml_confidence'] = 0.9
+    monkeypatch.setattr(strat, 'generate_ml_signal', lambda d, symbol='': d)
+    cross_up = (df['ema'] > df['sma']) & (df['ema'].shift(1) <= df['sma'].shift(1))
+    assert not cross_up.iloc[-1]
+    df = generate_signals(df, config['score_threshold'], config=config)
+    assert df['long_signal'].iloc[-1]
+    assert df['score_long'].iloc[-1] >= config['score_threshold']
+
+
+def test_cross_macd_ml_low_conf(dummy_df, config, monkeypatch):
+    config['use_crossover_filter'] = True
+    config['score_threshold'] = 2.0
+    config['hybrid_fallback'] = True
+    df = apply_indicators(dummy_df.copy(), config)
+    df.loc[df.index[-2], 'ema'] = df['sma'].iloc[-2] - 1
+    df.loc[df.index[-1], 'ema'] = df['sma'].iloc[-1] + 1
+    df.loc[df.index[-1], 'macd'] = df['macd_signal'].iloc[-1] + 0.1
+    df.loc[df.index[-1], 'rsi'] = 50
+    df['ml_signal'] = 1
+    df['ml_confidence'] = 0.5
+    monkeypatch.setattr(strat, 'generate_ml_signal', lambda d, symbol='': d)
+    df = generate_signals(df, config['score_threshold'], config=config)
+    assert df['ml_confidence'].iloc[-1] < 0.7
+    assert df['long_signal'].iloc[-1]
+    assert df['score_long'].iloc[-1] == pytest.approx(2.0)
