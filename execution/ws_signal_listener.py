@@ -4,11 +4,7 @@ from binance import AsyncClient, BinanceSocketManager
 import streamlit as st
 import logging
 from utils.data_provider import fetch_latest_data
-from strategies.scalping_strategy import (
-    apply_indicators,
-    generate_signals_legacy,
-    generate_signals_pythontrading_style,
-)
+from strategies_base.strategy_manager import StrategyManager
 from ml.predictor import predict_ml
 from database.signal_logger import log_signal, init_db
 import utils.bot_flags as bot_flags
@@ -17,6 +13,7 @@ from notifications.notifier import laporkan_error, kirim_notifikasi_telegram
 
 log = logging.getLogger(__name__)
 _loop: asyncio.AbstractEventLoop | None = None
+event_publisher = None  # fungsi untuk broadcast ke WS
 
 def _ensure_loop() -> asyncio.AbstractEventLoop:
     global _loop
@@ -34,6 +31,19 @@ ws_manager: BinanceSocketManager | None = None
 async_client: AsyncClient | None = None
 client_global: Client | None = None
 _tasks: dict[str, asyncio.Task] = {}
+
+
+def apply_indicators(df, params):
+    strat = StrategyManager.get("ScalpingStrategy")
+    strat.load_config(params)
+    log.info(f"Menggunakan strategi {strat.__class__.__name__}")
+    return strat.apply_indicators(df)
+
+
+def generate_signals_pythontrading_style(df, params, symbol: str = ""):
+    strat = StrategyManager.get("ScalpingStrategy")
+    strat.load_config(params)
+    return strat.generate_signals(df, symbol)
 
 
 def _higher_tf_trend(symbol: str, params: dict) -> tuple[bool, bool]:
@@ -91,7 +101,7 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                         log.warning(f"ML signal {symbol} gagal: {e}")
                         df.loc[df.index[-1], 'ml_signal'] = 1
                         df.loc[df.index[-1], 'ml_confidence'] = 0.0
-                    df = generate_signals_pythontrading_style(df, params)
+                    df = generate_signals_pythontrading_style(df, params, symbol)
                     signal_result = df.iloc[-1]
                     if signal_result.get("long_signal") or signal_result.get("short_signal"):
                         tipe = "LONG" if signal_result.get("long_signal") else "SHORT"
@@ -108,6 +118,19 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                         log_signal(symbol, "long", float(last.get("score_long", 0)))
                     elif last_short:
                         log_signal(symbol, "short", float(last.get("score_short", 0)))
+                    if event_publisher:
+                        try:
+                            event_publisher(
+                                {
+                                    "symbol": symbol,
+                                    "score": float(last.get("score", 0)),
+                                    "long_signal": bool(last_long),
+                                    "short_signal": bool(last_short),
+                                    "skip_reason": last.get("skip_reason", ""),
+                                }
+                            )
+                        except Exception as e:
+                            log.warning(f"Publish event gagal: {e}")
                     if symbol in signal_callbacks:
                         signal_callbacks[symbol](symbol, last)
                     if not last.get("long_signal") and not last.get("short_signal"):

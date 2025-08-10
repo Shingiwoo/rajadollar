@@ -1,11 +1,8 @@
 import pandas as pd
+import logging
 
-from strategies.scalping_strategy import (
-    ScalpingStrategy,
-    generate_signals_pythontrading_style,
-    generate_ml_signal,
-    confirm_by_higher_tf,
-)
+from strategies_base.strategy_manager import StrategyManager
+from strategies.scalping_strategy import confirm_by_higher_tf
 from risk_management.position_manager import apply_trailing_sl
 from execution.order_monitor import check_exit_condition
 from risk_management.risk_calculator import calculate_order_qty
@@ -39,7 +36,11 @@ def run_backtest(
 
     config = config or {}
     config.setdefault("score_threshold", score_threshold)
-    strategy = ScalpingStrategy(config)
+    strategy = StrategyManager.get("ScalpingStrategy")
+    strategy.load_config(config)
+    logging.getLogger(__name__).info(
+        f"Backtest menggunakan strategi {strategy.__class__.__name__}"
+    )
     df = strategy.apply_indicators(df)
 
     capital = initial_capital
@@ -52,11 +53,7 @@ def run_backtest(
 
     for i in range(len(df)):
         df_slice = df.iloc[: i + 1].copy()
-        if config.get('signal_engine', 'legacy') == 'pythontrading_style':
-            df_slice = generate_ml_signal(df_slice, symbol)
-            df_slice = generate_signals_pythontrading_style(df_slice, config)
-        else:
-            df_slice = strategy.generate_signals(df_slice, symbol)
+        df_slice = strategy.generate_signals(df_slice, symbol)
         row = df_slice.iloc[-1]
         price = row["close"]
         time = df_slice.index[-1].isoformat()

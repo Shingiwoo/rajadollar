@@ -1,6 +1,7 @@
 from functools import partial
 from typing import Dict, Any
 import streamlit as st
+import logging
 
 from execution.ws_listener import (
     start_price_stream,
@@ -19,9 +20,12 @@ from utils.data_provider import load_symbol_filters, get_futures_balance
 import utils.bot_flags as bot_flags
 from utils.resume_helper import handle_resume, sync_with_binance
 from notifications.notifier import kirim_notifikasi_telegram
+from strategies_base.strategy_manager import StrategyManager
+
+log = logging.getLogger(__name__)
 
 
-def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
+def start_bot(cfg: Dict[str, Any], publisher=None) -> Dict[str, Any]:
     """Mulai semua komponen trading dan kembalikan handle."""
     handles: Dict[str, Any] = {}
     balance = (
@@ -32,6 +36,9 @@ def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
     if balance == 0.0 or not bot_flags.IS_READY:
         st.error("❌ Balance invalid, bot not started")
         return {}
+    strategy_name = cfg.get("strategy", "ScalpingStrategy")
+    StrategyManager.get(strategy_name)  # inisiasi dan validasi
+    log.info(f"Strategi aktif: {strategy_name}")
     if not is_price_stream_running():
         handles["price_ws"] = start_price_stream(
             cfg["client"], cfg["symbols"]
@@ -63,7 +70,21 @@ def start_bot(cfg: Dict[str, Any]) -> Dict[str, Any]:
             notif_entry=cfg.get("notif_entry", True),
             notif_error=cfg.get("notif_error", True),
         )
-        register_signal_handler(sym, cb)
+        if publisher:
+            def combined(symbol, row, cb=cb):
+                publisher(
+                    {
+                        "symbol": symbol,
+                        "score": float(row.get("score", 0)),
+                        "long_signal": bool(row.get("long_signal")),
+                        "short_signal": bool(row.get("short_signal")),
+                        "skip_reason": row.get("skip_reason", ""),
+                    }
+                )
+                cb(symbol, row)
+            register_signal_handler(sym, combined)
+        else:
+            register_signal_handler(sym, cb)
     active_positions = handle_resume(
         cfg.get("resume_flag", False), cfg.get("notif_resume", False)
     )

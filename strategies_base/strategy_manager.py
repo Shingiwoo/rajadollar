@@ -36,3 +36,11 @@ def get_strategy(name: str) -> BaseStrategy:
     if not cls:
         raise KeyError(f"Strategi {name} tidak ditemukan")
     return cls()
+
+
+class StrategyManager:
+    """Fasad sederhana untuk mengambil instance strategi."""
+
+    @staticmethod
+    def get(name: str) -> BaseStrategy:
+        return get_strategy(name)
