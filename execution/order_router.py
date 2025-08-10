@@ -130,6 +130,40 @@ def adjust_quantity_to_min(symbol, quantity, price, symbol_filters):
 
     return qty
 
+
+def flatten_residual_position(client, symbol, symbol_filters, max_attempts: int = 2):
+    """Bersihkan sisa posisi menggunakan order market reduce-only."""
+    step = symbol_filters.get(symbol, {}).get("stepSize") or symbol_filters.get(symbol, {}).get("step", 0.0)
+    min_qty = symbol_filters.get(symbol, {}).get("minQty", 0.0)
+    min_notional = symbol_filters.get(symbol, {}).get("minNotional", 0.0)
+    price = get_mark_price(client, symbol)
+    if price is None:
+        return
+    for _ in range(max_attempts):
+        pos = safe_api_call_with_retry(client.futures_position_information, symbol=symbol)
+        if not pos:
+            return
+        amt = float(pos[0].get("positionAmt", 0.0))
+        if abs(amt) < 1e-9:
+            return
+        qty = max(abs(amt), min_qty)
+        if step:
+            qty = math.floor(qty / step) * step
+        if min_notional and price * qty < min_notional:
+            if step:
+                qty = math.ceil(min_notional / price / step) * step
+            else:
+                qty = min_notional / price
+        side = SIDE_SELL if amt > 0 else SIDE_BUY
+        safe_api_call_with_retry(
+            client.futures_create_order,
+            symbol=symbol,
+            side=side,
+            type=ORDER_TYPE_MARKET,
+            quantity=qty,
+            reduceOnly=True,
+        )
+
 def get_mark_price(client, symbol):
     """Ambil harga mark price futures untuk eksekusi close/stop yang aman."""
     result = safe_api_call_with_retry(client.futures_mark_price, symbol=symbol)
@@ -173,6 +207,7 @@ def safe_close_order_market(client, symbol, side, qty, symbol_steps, max_slippag
                 quantity=qty_adj
             )
             if order:
+                flatten_residual_position(client, symbol, symbol_steps)
                 return order
         except BinanceAPIException as e:
             if "2021" in str(e) or "2019" in str(e):
