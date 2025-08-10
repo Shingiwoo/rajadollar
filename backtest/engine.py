@@ -1,3 +1,5 @@
+import json
+import os
 import pandas as pd
 import logging
 
@@ -7,6 +9,8 @@ from risk_management.position_manager import apply_trailing_sl
 from execution.order_monitor import check_exit_condition
 from risk_management.risk_calculator import calculate_order_qty
 from models.trade import Trade
+from .data_loader import load_csv
+from .metrics import calculate_metrics
 
 
 def run_backtest(
@@ -232,4 +236,59 @@ def run_backtest(
 
     equity_df = pd.DataFrame({"equity": equity}, index=df.index[: len(equity)])
     return trades, equity_df, capital
+
+
+def backtest_symbols(
+    symbols: list[str],
+    timeframe: str,
+    start: str | None = None,
+    end: str | None = None,
+    export_path: str | None = None,
+    **kwargs,
+):
+    """Jalankan backtest untuk banyak simbol dan simpan metrik.
+
+    Parameter
+    ---------
+    symbols
+        Daftar simbol yang akan diuji.
+    timeframe
+        Timeframe data (misal ``15m``).
+    start, end
+        Rentang waktu data.
+    export_path
+        Jika diberikan, hasil metrik disimpan ke berkas JSON ini.
+    kwargs
+        Parameter tambahan untuk `run_backtest`.
+    """
+
+    hasil: dict[str, dict[str, float]] = {}
+    for sym in symbols:
+        path = os.path.join(
+            "data", "historical_data", timeframe, f"{sym}_{timeframe}.csv"
+        )
+        df = load_csv(path, start, end)
+        trades, equity, _ = run_backtest(
+            df,
+            symbol=sym,
+            start=start,
+            end=end,
+            timeframe=timeframe,
+            **kwargs,
+        )
+        met = calculate_metrics(trades)
+        hasil[sym] = {
+            "winrate": met.get("Persentase Menang", 0.0),
+            "profit_factor": met.get("Profit Factor", 0.0),
+            "trades": met.get("Total Transaksi", 0),
+            "avg_win": met.get("Rata-rata Profit", 0.0),
+            "avg_loss": met.get("Rata-rata Rugi", 0.0),
+        }
+
+    if export_path:
+        os.makedirs(os.path.dirname(export_path), exist_ok=True)
+        with open(export_path, "w") as fh:
+            json.dump(hasil, fh, indent=2)
+
+    return hasil
 
