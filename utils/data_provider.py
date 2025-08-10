@@ -69,10 +69,14 @@ def load_symbol_filters(client, coins):
                     )
 
                     if lot_filter and notional_filter:
+                        step_size = float(lot_filter.get('stepSize', 0))
                         symbol_filters[s['symbol']] = {
                             'minQty': float(lot_filter.get('minQty', 0)),
-                            'stepSize': float(lot_filter.get('stepSize', 0)),
-                            'minNotional': float(notional_filter.get('minNotional', notional_filter.get('notional', 0)))
+                            'stepSize': step_size,
+                            'step': step_size,
+                            'minNotional': float(
+                                notional_filter.get('minNotional', notional_filter.get('notional', 0))
+                            )
                         }
                 except Exception as e:
                     st.warning(f"Error processing filters for {s.get('symbol')}: {str(e)}")
