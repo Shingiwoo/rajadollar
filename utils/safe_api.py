@@ -1,6 +1,6 @@
 import time
 import logging
-from binance.exceptions import BinanceAPIException
+from binance.exceptions import BinanceAPIException, BinanceAPIException as ClientError
 
 _last_api_call = 0
 

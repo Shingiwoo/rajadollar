@@ -1,4 +1,11 @@
 {
+  "default": {
+    "score_threshold": 2.0,
+    "ml_weight": 1.0,
+    "use_crossover_filter": true,
+    "min_bb_width": 0.0,
+    "only_trend_15m": true
+  },
   "DOGEUSDT": {
     "ema_period": 22,
     "sma_period": 18,
