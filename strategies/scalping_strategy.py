@@ -1,13 +1,12 @@
 import pandas as pd
-from ta.trend import EMAIndicator, SMAIndicator, MACD
-from ta.momentum import RSIIndicator
-from ta.volatility import BollingerBands, AverageTrueRange
 import pickle
 import os
 import logging
 import numpy as np
 from typing import Any
 
+from strategies_base.base_strategy import BaseStrategy
+from indicators.indicator_manager import compute_indicators
 from utils.config_loader import load_global_config
 from utils.historical_data import MAX_DAYS
 
@@ -100,40 +99,127 @@ def generate_ml_signal(df, symbol: str = ""):
     df.loc[df.index[-1], 'ml_confidence'] = conf
     return df
 
-def apply_indicators(df, config=None, bb_std=2):
-    if config is None:
-        config = {}
-    ema_period = config.get('ema_period', 14)
-    sma_period = config.get('sma_period', 14)
-    rsi_period = config.get('rsi_period', 14)
-    
-    # Tambahan: konfigurable MACD param
-    macd_fast = config.get('macd_fast', 12)
-    macd_slow = config.get('macd_slow', 26)
-    macd_signal = config.get('macd_signal', 9)
+class ScalpingStrategy(BaseStrategy):
+    """Strategi scalping dengan dukungan indikator standar."""
 
-    # EMA & SMA
-    df['ema'] = EMAIndicator(close=df['close'], window=ema_period).ema_indicator()
-    df['sma'] = SMAIndicator(close=df['close'], window=sma_period).sma_indicator()
+    def apply_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        params = self.config
+        ind_list = ["ema", "sma", "macd", "rsi", "bb", "atr"]
+        ind_params = {
+            "ema": {"window": params.get("ema_period", 14)},
+            "sma": {"window": params.get("sma_period", 14)},
+            "macd": {
+                "fast": params.get("macd_fast", 12),
+                "slow": params.get("macd_slow", 26),
+                "signal": params.get("macd_signal", 9),
+            },
+            "rsi": {"window": params.get("rsi_period", 14)},
+            "bb": {
+                "window": params.get("bb_window", 20),
+                "dev": params.get("bb_std", 2),
+            },
+            "atr": {"window": params.get("atr_period", 14)},
+        }
+        return compute_indicators(df, ind_list, ind_params)
 
-    # MACD (dengan parameter)
-    macd_obj = MACD(close=df['close'], window_fast=macd_fast, window_slow=macd_slow, window_sign=macd_signal)
-    df['macd'] = macd_obj.macd()
-    df['macd_signal'] = macd_obj.macd_signal()
+    def generate_signals(self, df: pd.DataFrame, symbol: str = "") -> pd.DataFrame:
+        cfg = self.config
+        rsi_th = cfg.get("rsi_threshold", 40)
+        long_lower = rsi_th
+        long_upper = min(rsi_th + 30, 100)
+        short_lower = max(rsi_th - 10, 0)
+        short_upper = min(rsi_th + 20, 100)
 
-    # RSI
-    df['rsi'] = RSIIndicator(close=df['close'], window=rsi_period).rsi()
+        ml_conf_th = cfg.get("ml_conf_threshold", 0.7)
+        use_hybrid = cfg.get("hybrid_fallback", True)
+        ml_weight = cfg.get("ml_weight", 1.0)
+        use_crossover = cfg.get("use_crossover_filter", True)
+        score_threshold = cfg.get("score_threshold", 2.0)
 
-    # Bollinger Bands & Width
-    bb = BollingerBands(df['close'], window=20, window_dev=bb_std)
-    df['bb_upper'] = bb.bollinger_hband()
-    df['bb_lower'] = bb.bollinger_lband()
-    df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['close']
+        if "ml_signal" not in df.columns:
+            df["ml_signal"] = 1
+        if "ml_confidence" not in df.columns:
+            df["ml_confidence"] = 0.0
+        df = generate_ml_signal(df, symbol)
 
-    # ATR
-    df['atr'] = AverageTrueRange(df['high'], df['low'], df['close']).average_true_range()
+        cross_up = (df["ema"] > df["sma"]) & (df["ema"].shift(1) <= df["sma"].shift(1))
+        cross_down = (df["ema"] < df["sma"]) & (df["ema"].shift(1) >= df["sma"].shift(1))
 
-    return df
+        macd_long = df["macd"] > df["macd_signal"]
+        macd_short = df["macd"] < df["macd_signal"]
+        rsi_long = (df["rsi"] > long_lower) & (df["rsi"] < long_upper)
+        rsi_short = (df["rsi"] > short_lower) & (df["rsi"] < short_upper)
+
+        cond_long_ml = (df["ml_signal"] == 1).astype(float)
+        cond_short_ml = (df["ml_signal"] == 0).astype(float)
+
+        if use_hybrid and df["ml_confidence"].iloc[-1] < ml_conf_th:
+            cond_long_ml.iloc[-1] = 0.0
+            cond_short_ml.iloc[-1] = 0.0
+
+        trend_long = cross_up.astype(float) if use_crossover else (df["ema"] > df["sma"]).astype(float)
+        trend_short = cross_down.astype(float) if use_crossover else (df["ema"] < df["sma"]).astype(float)
+
+        score_long = (
+            trend_long + 0.5 * macd_long.astype(float) + 0.5 * rsi_long.astype(float) + ml_weight * cond_long_ml
+        )
+        score_short = (
+            trend_short + 0.5 * macd_short.astype(float) + 0.5 * rsi_short.astype(float) + ml_weight * cond_short_ml
+        )
+
+        df["score_long"] = score_long
+        df["score_short"] = score_short
+        df["long_signal"] = score_long >= score_threshold
+        df["short_signal"] = score_short >= score_threshold
+
+        reason = ""
+        min_bb = cfg.get("min_bb_width", 0)
+        if df["bb_width"].iloc[-1] < min_bb:
+            df.loc[df.index[-1], "long_signal"] = False
+            df.loc[df.index[-1], "short_signal"] = False
+            reason = "Volatilitas rendah"
+
+        ml_conf = df["ml_confidence"].iloc[-1]
+        if use_hybrid and ml_conf < ml_conf_th and not reason:
+            if not df["long_signal"].iloc[-1] and not df["short_signal"].iloc[-1]:
+                reason = "Confidence ML rendah"
+        elif not df["long_signal"].iloc[-1] and not df["short_signal"].iloc[-1] and not reason:
+            reason = "Menunggu konfirmasi indikator"
+
+        long_raw = df["long_signal"].copy()
+        short_raw = df["short_signal"].copy()
+        long_raw_last = bool(long_raw.iloc[-1])
+        short_raw_last = bool(short_raw.iloc[-1])
+
+        long_ok, short_ok = confirm_by_higher_tf(df, cfg)
+        df["swing_long"] = long_raw & long_ok
+        df["swing_short"] = short_raw & short_ok
+        if cfg.get("only_trend_15m", True):
+            if (long_raw_last and not long_ok) or (short_raw_last and not short_ok):
+                reason = "Tidak searah trend 15m"
+            df["long_signal"] = long_raw & long_ok
+            df["short_signal"] = short_raw & short_ok
+        mode = "swing" if df["swing_long"].iloc[-1] or df["swing_short"].iloc[-1] else "scalp"
+        df.loc[df.index[-1], "signal_mode"] = mode
+
+        if not df["long_signal"].iloc[-1] and not df["short_signal"].iloc[-1]:
+            if not reason:
+                if cfg.get("only_trend_15m", True) and (long_raw_last or short_raw_last) and (not long_ok or not short_ok):
+                    reason = "Tidak searah trend 15m"
+                elif not (df["ema"].iloc[-1] > df["sma"].iloc[-1]) and not (df["ema"].iloc[-1] < df["sma"].iloc[-1]):
+                    reason = "MA not aligned"
+                else:
+                    reason = "Score below threshold"
+            logging.info(
+                f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f} < {score_threshold}"
+            )
+        else:
+            logging.info(
+                f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f}"
+            )
+
+        df.loc[df.index[-1], "skip_reason"] = reason
+        return df
 
 
 def confirm_by_higher_tf(df, config=None):
@@ -196,115 +282,6 @@ def confirm_by_higher_tf(df, config=None):
     return bool(long_ok), bool(short_ok)
 
 
-def generate_signals_legacy(df, score_threshold=2.0, symbol: str = "", config=None):
-    if config is None:
-        config = {}
-    rsi_th = config.get('rsi_threshold', 40)
-    long_lower = rsi_th
-    long_upper = min(rsi_th + 30, 100)
-    short_lower = max(rsi_th - 10, 0)
-    short_upper = min(rsi_th + 20, 100)
-
-    ml_conf_th = config.get('ml_conf_threshold', 0.7)
-    use_hybrid = config.get('hybrid_fallback', True)
-    ml_weight = config.get('ml_weight', 1.0)
-    use_crossover = config.get('use_crossover_filter', True)
-
-    # Hitung sinyal ML sebelum kalkulasi teknikal
-    if 'ml_signal' not in df.columns:
-        df['ml_signal'] = 1
-    if 'ml_confidence' not in df.columns:
-        df['ml_confidence'] = 0.0
-    df = generate_ml_signal(df, symbol)
-
-    # Kondisi crossover
-    cross_up = (df['ema'] > df['sma']) & (df['ema'].shift(1) <= df['sma'].shift(1))
-    cross_down = (df['ema'] < df['sma']) & (df['ema'].shift(1) >= df['sma'].shift(1))
-
-    # Kondisi indikator
-    macd_long = df['macd'] > df['macd_signal']
-    macd_short = df['macd'] < df['macd_signal']
-    rsi_long = (df['rsi'] > long_lower) & (df['rsi'] < long_upper)
-    rsi_short = (df['rsi'] > short_lower) & (df['rsi'] < short_upper)
-
-    cond_long_ml = (df['ml_signal'] == 1).astype(float)
-    cond_short_ml = (df['ml_signal'] == 0).astype(float)
-
-    if use_hybrid and df['ml_confidence'].iloc[-1] < ml_conf_th:
-        cond_long_ml.iloc[-1] = 0.0
-        cond_short_ml.iloc[-1] = 0.0
-
-    trend_long = cross_up.astype(float) if use_crossover else (df['ema'] > df['sma']).astype(float)
-    trend_short = cross_down.astype(float) if use_crossover else (df['ema'] < df['sma']).astype(float)
-
-    score_long = (
-        trend_long +
-        0.5 * macd_long.astype(float) +
-        0.5 * rsi_long.astype(float) +
-        ml_weight * cond_long_ml
-    )
-    score_short = (
-        trend_short +
-        0.5 * macd_short.astype(float) +
-        0.5 * rsi_short.astype(float) +
-        ml_weight * cond_short_ml
-    )
-
-    df['score_long'] = score_long
-    df['score_short'] = score_short
-    df['long_signal'] = score_long >= score_threshold
-    df['short_signal'] = score_short >= score_threshold
-
-    reason = ""
-    min_bb = config.get('min_bb_width', 0)
-    if df['bb_width'].iloc[-1] < min_bb:
-        df.loc[df.index[-1], 'long_signal'] = False
-        df.loc[df.index[-1], 'short_signal'] = False
-        reason = "Volatilitas rendah"
-
-    ml_conf = df['ml_confidence'].iloc[-1]
-    if use_hybrid and ml_conf < ml_conf_th and not reason:
-        if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
-            reason = "Confidence ML rendah"
-    elif not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1] and not reason:
-        reason = "Menunggu konfirmasi indikator"
-
-    long_raw = df['long_signal'].copy()
-    short_raw = df['short_signal'].copy()
-    long_raw_last = bool(long_raw.iloc[-1])
-    short_raw_last = bool(short_raw.iloc[-1])
-
-    # Konfirmasi timeframe lebih besar
-    long_ok, short_ok = confirm_by_higher_tf(df, config)
-    df['swing_long'] = long_raw & long_ok
-    df['swing_short'] = short_raw & short_ok
-    if config.get('only_trend_15m', True):
-        if (long_raw_last and not long_ok) or (short_raw_last and not short_ok):
-            reason = "Tidak searah trend 15m"
-        df['long_signal'] = long_raw & long_ok
-        df['short_signal'] = short_raw & short_ok
-    mode = 'swing' if df['swing_long'].iloc[-1] or df['swing_short'].iloc[-1] else 'scalp'
-    df.loc[df.index[-1], 'signal_mode'] = mode
-
-    if not df['long_signal'].iloc[-1] and not df['short_signal'].iloc[-1]:
-        if not reason:
-            if config.get('only_trend_15m', True) and (long_raw_last or short_raw_last) and (not long_ok or not short_ok):
-                reason = "Tidak searah trend 15m"
-            elif not (df['ema'].iloc[-1] > df['sma'].iloc[-1]) and not (df['ema'].iloc[-1] < df['sma'].iloc[-1]):
-                reason = "MA not aligned"
-            else:
-                reason = "Score below threshold"
-        logging.info(
-            f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f} < {score_threshold}"
-        )
-    else:
-        logging.info(
-            f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f}"
-        )
-
-    df.loc[df.index[-1], 'skip_reason'] = reason
-    return df
-
 
 def generate_signals_pythontrading_style(df, params: dict | None = None):
     if params is None:
@@ -332,5 +309,21 @@ def generate_signals_pythontrading_style(df, params: dict | None = None):
     return df
 
 
-def generate_signals(df, score_threshold=2.0, symbol: str = "", config=None):
-    return generate_signals_legacy(df, score_threshold, symbol, config)
+def apply_indicators(df: pd.DataFrame, config: dict | None = None) -> pd.DataFrame:
+    strat = ScalpingStrategy(config)
+    return strat.apply_indicators(df)
+
+
+def generate_signals(
+    df: pd.DataFrame, score_threshold: float = 2.0, symbol: str = "", config: dict | None = None
+) -> pd.DataFrame:
+    cfg = config.copy() if config else {}
+    cfg.setdefault("score_threshold", score_threshold)
+    strat = ScalpingStrategy(cfg)
+    return strat.generate_signals(df, symbol)
+
+
+def generate_signals_legacy(
+    df: pd.DataFrame, score_threshold: float = 2.0, symbol: str = "", config: dict | None = None
+) -> pd.DataFrame:
+    return generate_signals(df, score_threshold, symbol, config)

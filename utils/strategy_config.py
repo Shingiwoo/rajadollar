@@ -5,7 +5,7 @@ from typing import Dict, Any
 STRATEGY_CFG_PATH = os.path.join("config", "strategy.json")
 
 DEFAULT_MANUAL_PARAMS = {
-    "ema_period": 18,
+    "ema_period": 5,
     "sma_period": 22,
     "macd_fast": 12,
     "macd_slow": 26,

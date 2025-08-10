@@ -1,8 +1,7 @@
 import pandas as pd
 
 from strategies.scalping_strategy import (
-    apply_indicators,
-    generate_signals_legacy,
+    ScalpingStrategy,
     generate_signals_pythontrading_style,
     generate_ml_signal,
     confirm_by_higher_tf,
@@ -39,7 +38,9 @@ def run_backtest(
         df = df[df.index <= pd.to_datetime(end)]
 
     config = config or {}
-    df = apply_indicators(df, config)
+    config.setdefault("score_threshold", score_threshold)
+    strategy = ScalpingStrategy(config)
+    df = strategy.apply_indicators(df)
 
     capital = initial_capital
     risk_pct = risk_per_trade / 100
@@ -55,9 +56,7 @@ def run_backtest(
             df_slice = generate_ml_signal(df_slice, symbol)
             df_slice = generate_signals_pythontrading_style(df_slice, config)
         else:
-            df_slice = generate_signals_legacy(
-                df_slice, score_threshold, symbol, config
-            )
+            df_slice = strategy.generate_signals(df_slice, symbol)
         row = df_slice.iloc[-1]
         price = row["close"]
         time = df_slice.index[-1].isoformat()
