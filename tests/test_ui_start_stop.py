@@ -32,7 +32,7 @@ def test_start_stop_toggle(monkeypatch):
     set_ready(True)
     monkeypatch.setattr("utils.trading_controller.start_price_stream", lambda *a, **k: "ws")
     monkeypatch.setattr("utils.trading_controller.start_signal_stream", lambda *a, **k: None)
-    monkeypatch.setattr("utils.trading_controller.start_exit_monitor", lambda *a, **k: (ev, None))
+    monkeypatch.setattr("utils.trading_controller.start_exit_monitor", lambda *a, **k: (ev, None, MagicMock(paused=False)))
     monkeypatch.setattr("utils.trading_controller.load_symbol_filters", lambda *a, **k: {})
     monkeypatch.setattr("utils.trading_controller.handle_resume", lambda *a, **k: [])
     monkeypatch.setattr("utils.trading_controller.sync_with_binance", lambda *a, **k: None)

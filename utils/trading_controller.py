@@ -21,6 +21,9 @@ import utils.bot_flags as bot_flags
 from utils.resume_helper import handle_resume, sync_with_binance
 from notifications.notifier import kirim_notifikasi_telegram
 from strategies_base.strategy_manager import StrategyManager
+from utils.state_manager import load_state
+from execution.order_router import safe_close_order_market
+from risk_management.resume_state import save_resume_state
 
 log = logging.getLogger(__name__)
 
@@ -51,11 +54,18 @@ def start_bot(cfg: Dict[str, Any], publisher=None) -> Dict[str, Any]:
             cfg["client"], cfg["symbols"], cfg["strategy_params"], cfg.get("timeframe", "5m")
         )
     symbol_steps = load_symbol_filters(cfg["client"], cfg["symbols"])
-    ev, th = start_exit_monitor(
-        cfg["client"], symbol_steps, notif_exit=cfg.get("notif_exit", True), loss_limit=cfg.get("loss_limit", -50.0)
+    ev, th, circuit = start_exit_monitor(
+        cfg["client"],
+        symbol_steps,
+        notif_exit=cfg.get("notif_exit", True),
+        max_dd=cfg.get("max_dd", 50.0),
+        max_losses=cfg.get("max_consecutive_losses", 3),
     )
     handles["stop_event"] = ev
     handles["exit_thread"] = th
+    handles["circuit_breaker"] = circuit
+    handles["client"] = cfg["client"]
+    handles["symbol_steps"] = symbol_steps
     for sym in cfg["symbols"]:
         cb = partial(
             on_signal,
@@ -70,8 +80,8 @@ def start_bot(cfg: Dict[str, Any], publisher=None) -> Dict[str, Any]:
             notif_entry=cfg.get("notif_entry", True),
             notif_error=cfg.get("notif_error", True),
         )
-        if publisher:
-            def combined(symbol, row, cb=cb):
+        def handler(symbol, row, cb=cb):
+            if publisher:
                 publisher(
                     {
                         "symbol": symbol,
@@ -81,10 +91,11 @@ def start_bot(cfg: Dict[str, Any], publisher=None) -> Dict[str, Any]:
                         "skip_reason": row.get("skip_reason", ""),
                     }
                 )
-                cb(symbol, row)
-            register_signal_handler(sym, combined)
-        else:
-            register_signal_handler(sym, cb)
+            if handles["circuit_breaker"].paused or bot_flags.PAUSED:
+                return
+            cb(symbol, row)
+
+        register_signal_handler(sym, handler)
     active_positions = handle_resume(
         cfg.get("resume_flag", False), cfg.get("notif_resume", False)
     )
@@ -111,4 +122,19 @@ def stop_bot(handles: Dict[str, Any]) -> None:
     ev = handles.get("stop_event")
     if ev:
         ev.set()
+
+
+def cut_all(handles: Dict[str, Any]) -> None:
+    client = handles.get("client")
+    steps = handles.get("symbol_steps", {})
+    for trade in load_state():
+        safe_close_order_market(
+            client,
+            trade["symbol"],
+            "SELL" if trade["side"] == "long" else "BUY",
+            trade["size"],
+            steps,
+        )
+    bot_flags.set_paused(True)
+    save_resume_state({"daily_drawdown": 0.0, "consecutive_losses": 0, "paused": True})
 

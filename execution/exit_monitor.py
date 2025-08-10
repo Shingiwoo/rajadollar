@@ -80,16 +80,22 @@ def check_and_close_positions(client, symbol_steps: Dict[str, Dict], notif_exit:
     return updated
 
 
-def start_exit_monitor(client, symbol_steps: Dict[str, Dict], interval: float = 1.0, notif_exit: bool = True, loss_limit: float = -50.0):
+def start_exit_monitor(
+    client,
+    symbol_steps: Dict[str, Dict],
+    interval: float = 1.0,
+    notif_exit: bool = True,
+    max_dd: float = 50.0,
+    max_losses: int = 3,
+):
     stop_event = threading.Event()
-    circuit = CircuitBreaker(loss_limit=loss_limit)
+    circuit = CircuitBreaker(max_drawdown=max_dd, max_losses=max_losses)
 
     def loop():
         while not stop_event.is_set() and not st.session_state.get("stop_signal"):
             try:
                 check_and_close_positions(client, symbol_steps, notif_exit)
-                if circuit.check(client, symbol_steps, stop_event):
-                    break
+                circuit.check()
             except Exception as e:
                 logging.error(f"Exit monitor error: {e}", exc_info=True)
             time.sleep(interval)
@@ -114,4 +120,4 @@ def start_exit_monitor(client, symbol_steps: Dict[str, Dict], interval: float = 
             time.sleep(5)
 
     threading.Thread(target=watcher, daemon=True).start()
-    return stop_event, thread
+    return stop_event, thread, circuit

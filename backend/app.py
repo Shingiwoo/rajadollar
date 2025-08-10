@@ -8,6 +8,7 @@ from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconne
 
 from utils import trading_controller
 from database import signal_logger, sqlite_logger
+from execution.ws_signal_listener import get_top_reasons
 
 app = FastAPI()
 
@@ -90,9 +91,20 @@ def stop_bot(token: str = Header(...)):
     return {"status": "stopped"}
 
 
+@app.post("/risk/cut")
+def risk_cut(token: str = Header(...)):
+    _validate_token(token)
+    trading_controller.cut_all(bot_state.get("handles") or {})
+    return {"status": "cut"}
+
+
 @app.get("/status")
 def status():
-    return {"running": bot_state["running"], "strategy": bot_state["strategy"]}
+    return {
+        "running": bot_state["running"],
+        "strategy": bot_state["strategy"],
+        "top_reasons": get_top_reasons(),
+    }
 
 
 @app.post("/backtest")
@@ -119,7 +131,7 @@ def put_strategy_params(params: Dict[str, Any], token: str = Header(...)):
 
 @app.get("/signals/recent")
 def signals_recent():
-    df = signal_logger.get_signals_today()
+    df = signal_logger.get_signals_recent(20)
     return df.to_dict(orient="records")
 
 
