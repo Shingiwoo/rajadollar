@@ -141,6 +141,12 @@ class ScalpingStrategy(BaseStrategy):
         if "ml_confidence" not in df.columns:
             df["ml_confidence"] = 0.0
         df = generate_ml_signal(df, symbol)
+        if "skip_reason" not in df.columns:
+            df["skip_reason"] = ""
+        if "skip_reasons" not in df.columns:
+            df["skip_reasons"] = None
+        if "components_detail" not in df.columns:
+            df["components_detail"] = None
 
         cross_up = (df["ema"] > df["sma"]) & (df["ema"].shift(1) <= df["sma"].shift(1))
         cross_down = (df["ema"] < df["sma"]) & (df["ema"].shift(1) >= df["sma"].shift(1))
@@ -172,19 +178,19 @@ class ScalpingStrategy(BaseStrategy):
         df["long_signal"] = score_long >= score_threshold
         df["short_signal"] = score_short >= score_threshold
 
-        reason = ""
+        skip_reasons: list[str] = []
         min_bb = cfg.get("min_bb_width", 0)
         if df["bb_width"].iloc[-1] < min_bb:
-            df.loc[df.index[-1], "long_signal"] = False
-            df.loc[df.index[-1], "short_signal"] = False
-            reason = "Volatilitas rendah"
+            df.at[df.index[-1], "long_signal"] = False
+            df.at[df.index[-1], "short_signal"] = False
+            skip_reasons.append("Volatilitas rendah")
 
         ml_conf = df["ml_confidence"].iloc[-1]
-        if use_hybrid and ml_conf < ml_conf_th and not reason:
+        if use_hybrid and ml_conf < ml_conf_th and not skip_reasons:
             if not df["long_signal"].iloc[-1] and not df["short_signal"].iloc[-1]:
-                reason = "Confidence ML rendah"
-        elif not df["long_signal"].iloc[-1] and not df["short_signal"].iloc[-1] and not reason:
-            reason = "Menunggu konfirmasi indikator"
+                skip_reasons.append("Confidence ML rendah")
+        elif not df["long_signal"].iloc[-1] and not df["short_signal"].iloc[-1] and not skip_reasons:
+            skip_reasons.append("Menunggu konfirmasi indikator")
 
         long_raw = df["long_signal"].copy()
         short_raw = df["short_signal"].copy()
@@ -196,20 +202,20 @@ class ScalpingStrategy(BaseStrategy):
         df["swing_short"] = short_raw & short_ok
         if cfg.get("only_trend_15m", True):
             if (long_raw_last and not long_ok) or (short_raw_last and not short_ok):
-                reason = "Tidak searah trend 15m"
+                skip_reasons.append("Tidak searah trend 15m")
             df["long_signal"] = long_raw & long_ok
             df["short_signal"] = short_raw & short_ok
         mode = "swing" if df["swing_long"].iloc[-1] or df["swing_short"].iloc[-1] else "scalp"
         df.loc[df.index[-1], "signal_mode"] = mode
 
         if not df["long_signal"].iloc[-1] and not df["short_signal"].iloc[-1]:
-            if not reason:
+            if not skip_reasons:
                 if cfg.get("only_trend_15m", True) and (long_raw_last or short_raw_last) and (not long_ok or not short_ok):
-                    reason = "Tidak searah trend 15m"
+                    skip_reasons.append("Tidak searah trend 15m")
                 elif not (df["ema"].iloc[-1] > df["sma"].iloc[-1]) and not (df["ema"].iloc[-1] < df["sma"].iloc[-1]):
-                    reason = "MA not aligned"
+                    skip_reasons.append("MA not aligned")
                 else:
-                    reason = "Score below threshold"
+                    skip_reasons.append("Score below threshold")
             logging.info(
                 f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f} < {score_threshold}"
             )
@@ -218,7 +224,17 @@ class ScalpingStrategy(BaseStrategy):
                 f"Skor long {score_long.iloc[-1]:.2f}, short {score_short.iloc[-1]:.2f}"
             )
 
-        df.loc[df.index[-1], "skip_reason"] = reason
+        components_detail = {
+            "trend": float(trend_long.iloc[-1] - trend_short.iloc[-1]),
+            "macd": float(df["macd"].iloc[-1]),
+            "rsi": float(df["rsi"].iloc[-1]),
+            "ml": float(df["ml_signal"].iloc[-1]),
+            "bb_width": float(df["bb_width"].iloc[-1]),
+            "ml_conf": float(df["ml_confidence"].iloc[-1]),
+        }
+        df.at[df.index[-1], "skip_reasons"] = skip_reasons
+        df.at[df.index[-1], "skip_reason"] = "; ".join(skip_reasons)
+        df.at[df.index[-1], "components_detail"] = components_detail
         return df
 
 

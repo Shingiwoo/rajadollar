@@ -1,9 +1,7 @@
 import pandas as pd
 from datetime import datetime, timezone
-import threading
-from unittest.mock import MagicMock
-
 from risk_management.circuit_breaker import CircuitBreaker
+from utils import bot_flags
 
 
 def test_circuit_breaker_trigger(monkeypatch):
@@ -12,22 +10,9 @@ def test_circuit_breaker_trigger(monkeypatch):
         'pnl': [-60.0],
     })
     monkeypatch.setattr('risk_management.circuit_breaker.get_all_trades', lambda: df)
-    monkeypatch.setattr('risk_management.circuit_breaker.load_state', lambda: [
-        {'symbol': 'BTCUSDT', 'side': 'long', 'size': 0.1}
-    ])
-    closed = []
-    def mock_close(client, symbol, side, size, steps):
-        closed.append((symbol, side, size))
-    monkeypatch.setattr('risk_management.circuit_breaker.safe_close_order_market', mock_close)
-    dummy_ws = MagicMock()
-    monkeypatch.setattr('risk_management.circuit_breaker.ws_signal_listener', MagicMock(ws_manager=dummy_ws))
     monkeypatch.setattr('risk_management.circuit_breaker.kirim_notifikasi_telegram', lambda msg: None)
-
-    cb = CircuitBreaker(loss_limit=-50)
-    stop_event = threading.Event()
-    triggered = cb.check(MagicMock(), {'BTCUSDT': {'step': 0.001}}, stop_event)
-
+    bot_flags.set_paused(False)
+    cb = CircuitBreaker(max_drawdown=50, max_losses=2)
+    triggered = cb.check()
     assert triggered is True
-    assert stop_event.is_set()
-    assert closed
-    dummy_ws.stop.assert_called_once()
+    assert bot_flags.PAUSED is True

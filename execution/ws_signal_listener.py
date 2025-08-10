@@ -10,10 +10,15 @@ from database.signal_logger import log_signal, init_db
 import utils.bot_flags as bot_flags
 from binance.client import Client
 from notifications.notifier import laporkan_error, kirim_notifikasi_telegram
+from collections import defaultdict, Counter
+import time
 
 log = logging.getLogger(__name__)
 _loop: asyncio.AbstractEventLoop | None = None
 event_publisher = None  # fungsi untuk broadcast ke WS
+_reason_counter = defaultdict(Counter)
+_last_summary = defaultdict(float)
+_top_reasons = {}
 
 def _ensure_loop() -> asyncio.AbstractEventLoop:
     global _loop
@@ -44,6 +49,12 @@ def generate_signals_pythontrading_style(df, params, symbol: str = ""):
     strat = StrategyManager.get("ScalpingStrategy")
     strat.load_config(params)
     return strat.generate_signals(df, symbol)
+
+
+def generate_signals_legacy(df, threshold, symbol: str | None = None, config: dict | None = None):
+    params = config.copy() if config else {}
+    params.setdefault("score_threshold", threshold)
+    return generate_signals_pythontrading_style(df, params, symbol or "")
 
 
 def _higher_tf_trend(symbol: str, params: dict) -> tuple[bool, bool]:
@@ -103,21 +114,25 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                         df.loc[df.index[-1], 'ml_confidence'] = 0.0
                     df = generate_signals_pythontrading_style(df, params, symbol)
                     signal_result = df.iloc[-1]
-                    if signal_result.get("long_signal") or signal_result.get("short_signal"):
-                        tipe = "LONG" if signal_result.get("long_signal") else "SHORT"
-                        log.info(
-                            f"[LIVE] Sinyal {symbol} ➜ {tipe} | Skor: {signal_result.get('score', '-')}"
-                        )
-                        log.info(f"[CHECK] signal_result: {signal_result}")
                     long_ok, short_ok = _higher_tf_trend(symbol, strategy_params[symbol])
                     last = signal_result
                     last_long = bool(last.get("long_signal")) and long_ok
                     last_short = bool(last.get("short_signal")) and short_ok
                     last["long_signal"], last["short_signal"] = last_long, last_short
-                    if last_long:
-                        log_signal(symbol, "long", float(last.get("score_long", 0)))
-                    elif last_short:
-                        log_signal(symbol, "short", float(last.get("score_short", 0)))
+                    direction = "long" if last_long else "short" if last_short else "none"
+                    score_val = float(
+                        last.get("score_long" if last_long else "score_short", 0)
+                    )
+                    try:
+                        log_signal(
+                            symbol,
+                            direction,
+                            score_val,
+                            components=last.get("components_detail"),
+                            skip_reason=last.get("skip_reason", ""),
+                        )
+                    except Exception:
+                        pass
                     if event_publisher:
                         try:
                             event_publisher(
@@ -127,10 +142,24 @@ async def _socket_runner(symbol: str, strategy_params: dict, timeframe: str):
                                     "long_signal": bool(last_long),
                                     "short_signal": bool(last_short),
                                     "skip_reason": last.get("skip_reason", ""),
+                                    "components": last.get("components_detail", {}),
+                                    "skip_reasons": last.get("skip_reasons", []),
                                 }
                             )
                         except Exception as e:
                             log.warning(f"Publish event gagal: {e}")
+                    _reason_counter[symbol][last.get("skip_reason", "")] += 1
+                    now = time.time()
+                    if now - _last_summary[symbol] >= 300:
+                        top = _reason_counter[symbol].most_common(1)
+                        if top:
+                            _top_reasons[symbol] = top[0][0]
+                            if event_publisher:
+                                event_publisher(
+                                    {"symbol": symbol, "top_reason": top[0][0]}
+                                )
+                        _reason_counter[symbol].clear()
+                        _last_summary[symbol] = now
                     if symbol in signal_callbacks:
                         signal_callbacks[symbol](symbol, last)
                     if not last.get("long_signal") and not last.get("short_signal"):
@@ -173,6 +202,11 @@ def start_signal_stream(client, symbols: list[str], strategy_params, timeframe: 
     for sym in symbols:
         try:
             _tasks[sym] = loop.create_task(_socket_runner(sym, strategy_params, timeframe))
+            if sym in signal_callbacks:
+                try:
+                    signal_callbacks[sym](sym, {})
+                except Exception:
+                    pass
         except Exception as e:
             laporkan_error(f"WS signal task error {sym}: {e}")
 
@@ -193,3 +227,7 @@ def stop_signal_stream() -> None:
 def is_signal_stream_running() -> bool:
     """Periksa apakah signal stream sedang aktif."""
     return bool(_tasks)
+
+
+def get_top_reasons():
+    return _top_reasons
